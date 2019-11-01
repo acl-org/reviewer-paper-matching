@@ -12,8 +12,8 @@ from torch.nn.utils.rnn import pack_padded_sequence as pack
 from evaluate import evaluate
 from torch import optim
 
-def load_model(data, args):
-    model = torch.load(args.load_file)
+def load_model(data, load_file):
+    model = torch.load(load_file)
 
     state_dict = model['state_dict']
     model_args = model['args']
