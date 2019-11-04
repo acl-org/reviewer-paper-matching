@@ -26,12 +26,35 @@ aclweb.org, a rough approximation of the papers in the ACL Anthology.
 
     zcat s2/s2-corpus*.gz | grep aclweb.org > scratch/acl-anthology.json
 
-**Step 6:** In the scratch directory, create two files of paper abstracts `scratch/abstracts.txt` and reviewer names
-`scratch/reviewers.txt`.
+**Step 6:** Train a model of semantic similarity based on the ACL anthology (this step requires GPU). Alternatively,
+you may contact the authors to get a model distributed to you.
 
-**Step 7:** Train a model of semantic similarity based on the ACL anthology.
+    python prepare_similarity_data.py < scratch/acl-anthology.json > scratch/acl-anthology-training.tsv
+    python -u train_similarity.py --data-file scratch/acl-anthology-training.tsv \
+                                  --model avg --dim 300--epochs 10 --ngrams 3 --share-vocab 1 --dropout 0.3 \
+                                  --save-every-epoch 1 2>&1 | tee scratch/training.log
 
-TODO: finish up directions
+At the present, this will save models in the top directory, so let's move them to the scratch directory:
+
+    mv model_10.pt scratch/similarity-model.pt
+    rm model_*.pt
+
+**Step 7:** In the scratch directory, create two files of paper abstracts `scratch/abstracts.txt` and reviewer names
+`scratch/reviewers.txt` for the current conference.
+
+**Step 8:** Create and save the reviewer assignments:
+
+    python suggest_reviewers.py \
+        --submission_file=scratch/abstracts.txt \
+        --db_file=scratch/acl-anthology.json \
+        --reviewer_file=scratch/reviewers.txt \
+        --model_file=scratch/similarity-model.pt \
+        --ngrams=3 \
+        --max_papers_per_reviewer=5 \
+        --reviews_per_paper=3 \
+        | tee scratch/assignments.txt
+
+You will then have assignments written to both the terminal and `scratch/assignments.txt`
 
 ## Method Description
 
