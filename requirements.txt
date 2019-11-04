@@ -2,3 +2,4 @@ numpy
 scipy
 sentencepiece
 sacremoses
+cvxpy

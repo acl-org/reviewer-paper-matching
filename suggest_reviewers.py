@@ -173,7 +173,6 @@ if __name__ == "__main__":
     assignment, assignment_score = create_suggested_assignment(reviewer_scores,
                                              max_papers_per_reviewer=args.max_papers_per_reviewer,
                                              reviews_per_paper=args.reviews_per_paper)
-    print(assignment, assignment_score)
 
     # Print out the results
     for i, query in enumerate(submissions):
