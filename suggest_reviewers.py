@@ -9,6 +9,7 @@ import argparse
 from models import load_model
 from collections import defaultdict
 import numpy as np
+import cvxpy as cp
 import sys
 sys.setrecursionlimit(10000)
 
@@ -105,6 +106,21 @@ def calc_aggregate_reviewer_score(rdb, scores, operator='max'):
     return agg
 
 
+def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, max_papers_per_reviewer=5):
+    num_pap, num_rev = reviewer_scores.shape
+    if num_rev*max_papers_per_reviewer < num_pap*reviews_per_paper:
+        raise ValueError(f'There are not enough reviewers ({num_rev}) review all the papers ({num_pap})'
+                         f' given a constraint of {reviews_per_paper} reviews per paper and'
+                         f' {max_papers_per_reviewer} reviews per reviewer')
+    assignment = cp.Variable(shape=reviewer_scores.shape, boolean=True)
+    rev_constraint = cp.sum(assignment, axis=0) <= max_papers_per_reviewer
+    pap_constraint = cp.sum(assignment, axis=1) == reviews_per_paper
+    total_sim = cp.sum(cp.multiply(reviewer_scores, assignment))
+    constraints = [rev_constraint, pap_constraint]
+    assign_prob = cp.Problem(cp.Maximize(total_sim), constraints)
+    assign_prob.solve(solver=cp.GLPK_MI)
+    return assignment.value, assign_prob.value
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -117,6 +133,8 @@ if __name__ == "__main__":
     parser.add_argument("--save_paper_matrix", help="A filename for where to save the paper similarity matrix")
     parser.add_argument("--load_paper_matrix", help="A filename for where to load the cached paper similarity matrix")
     parser.add_argument("--ngrams", default=0, type=int, help="whether to use character n-grams")
+    parser.add_argument("--max_papers_per_reviewer", default=5, type=int, help="How many papers, maximum, to assign to each reviewer")
+    parser.add_argument("--reviews_per_paper", default=3, type=int, help="How many reviews to assign to each paper")
 
     args = parser.parse_args()
 
@@ -144,7 +162,20 @@ if __name__ == "__main__":
         if args.save_paper_matrix:
             np.save(args.save_paper_matrix, mat)
 
+    # Calculate reviewer scores based on paper similarity scores
     reviewer_scores = np.zeros( (len(submissions), len(reviewer_names)) )
+    print('Calculating aggregate reviewer scores', file=sys.stderr)
+    for i, query in enumerate(submissions):
+        reviewer_scores[i] = calc_aggregate_reviewer_score(rdb, mat[i], 'weighted_top3')
+
+    # Calculate a reviewer assignment based on the constraints
+    print('Calculating assignment of reviewers', file=sys.stderr)
+    assignment, assignment_score = create_suggested_assignment(reviewer_scores,
+                                             max_papers_per_reviewer=args.max_papers_per_reviewer,
+                                             reviews_per_paper=args.reviews_per_paper)
+    print(assignment, assignment_score)
+
+    # Print out the results
     for i, query in enumerate(submissions):
         scores = mat[i]
         best_idxs = scores.argsort()[-5:][::-1]
@@ -156,10 +187,14 @@ if __name__ == "__main__":
             print(f'# Score {scores[idx]}\n{db_abs[idx]}')
         print()
 
-        reviewer_scores[i] = calc_aggregate_reviewer_score(rdb, scores, 'weighted_top3')
         best_reviewers = reviewer_scores[i].argsort()[-5:][::-1]
         print('*** Best Matched Reviewers')
         for idx in best_reviewers:
             print(f'# {reviewer_names[idx]} (Score {reviewer_scores[i][idx]})')
         print()
 
+        print('*** Assigned Reviewers')
+        assigned_reviewers = assignment[i].argsort()[-args.reviews_per_paper:][::-1]
+        for idx in assigned_reviewers:
+            print(f'# {reviewer_names[idx]} (Score {reviewer_scores[i][idx]})')
+        print()
