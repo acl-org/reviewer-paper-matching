@@ -33,12 +33,7 @@ you may contact the authors to get a model distributed to you.
     python prepare_similarity_data.py < scratch/acl-anthology.json > scratch/acl-anthology-training.tsv
     python -u train_similarity.py --data-file scratch/acl-anthology-training.tsv \
                                   --model avg --dim 300--epochs 10 --ngrams 3 --share-vocab 1 --dropout 0.3 \
-                                  --save-every-epoch 1 2>&1 | tee scratch/training.log
-
-At the present, this will save models in the top directory, so let's move them to the scratch directory:
-
-    mv model_10.pt scratch/similarity-model.pt
-    rm model_*.pt
+                                  --outfile scratch/similarity-model.pt 2>&1 | tee scratch/training.log
 
 **Step 7:** In the scratch directory, create two files of paper abstracts `scratch/abstracts.txt` and reviewer names
 `scratch/reviewers.txt` for the current conference.
