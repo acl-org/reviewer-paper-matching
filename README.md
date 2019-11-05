@@ -29,6 +29,7 @@ aclweb.org, a rough approximation of the papers in the ACL Anthology.
 **Step 6:** Train a model of semantic similarity based on the ACL anthology (this step requires GPU). Alternatively,
 you may contact the authors to get a model distributed to you.
 
+    bash download_sts17.sh
     python prepare_similarity_data.py < scratch/acl-anthology.json > scratch/acl-anthology-training.tsv
     python -u train_similarity.py --data-file scratch/acl-anthology-training.tsv \
                                   --model avg --dim 300--epochs 10 --ngrams 3 --share-vocab 1 --dropout 0.3 \
