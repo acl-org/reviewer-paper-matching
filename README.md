@@ -45,12 +45,14 @@ you may contact the authors to get a model distributed to you.
         --db_file=scratch/acl-anthology.json \
         --reviewer_file=scratch/reviewers.txt \
         --model_file=scratch/similarity-model.pt \
-        --ngrams=3 \
         --max_papers_per_reviewer=5 \
         --reviews_per_paper=3 \
-        | tee scratch/assignments.txt
+        --output_type=json \
+        | tee scratch/assignments.json
 
-You will then have assignments written to both the terminal and `scratch/assignments.txt`
+You will then have assignments written to both the terminal and `scratch/assignments.json`. You can modify
+`reviews_per_paper` and `max_papers_per_reviewer` to change the number of reviews assigned to each paper and max number
+of reviews per reviewer. You can also output in an easier-to-read text format with `--output_type=text`.
 
 ## Method Description
 

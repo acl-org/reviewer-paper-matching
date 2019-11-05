@@ -39,7 +39,7 @@ def create_embeddings(model, examps):
             p1 = model.sp.EncodeAsPieces(p1)
             p1 = " ".join(p1)
         wp1 = Example(p1)
-        wp1.populate_embeddings(model.vocab, model.zero_unk, args.ngrams)
+        wp1.populate_embeddings(model.vocab, model.zero_unk, model.args.ngrams)
         if len(wp1.embeddings) == 0:
             wp1.embeddings.append(model.vocab[unk_string])
         data.append(wp1)
@@ -132,9 +132,9 @@ if __name__ == "__main__":
     parser.add_argument("--model_file", help="filename to load the pre-trained semantic similarity file.")
     parser.add_argument("--save_paper_matrix", help="A filename for where to save the paper similarity matrix")
     parser.add_argument("--load_paper_matrix", help="A filename for where to load the cached paper similarity matrix")
-    parser.add_argument("--ngrams", default=0, type=int, help="whether to use character n-grams")
     parser.add_argument("--max_papers_per_reviewer", default=5, type=int, help="How many papers, maximum, to assign to each reviewer")
     parser.add_argument("--reviews_per_paper", default=3, type=int, help="How many reviews to assign to each paper")
+    parser.add_argument("--output_type", default="json", type=str, help="What format of output to produce (json/text)")
 
     args = parser.parse_args()
 
@@ -178,22 +178,32 @@ if __name__ == "__main__":
     for i, query in enumerate(submissions):
         scores = mat[i]
         best_idxs = scores.argsort()[-5:][::-1]
-        print('-----------------------------------------------------')
-        print('*** Paper Abstract')
-        print(query)
-        print('\n*** Similar Paper Abstracts')
-        for idx in best_idxs:
-            print(f'# Score {scores[idx]}\n{db_abs[idx]}')
-        print()
-
         best_reviewers = reviewer_scores[i].argsort()[-5:][::-1]
-        print('*** Best Matched Reviewers')
-        for idx in best_reviewers:
-            print(f'# {reviewer_names[idx]} (Score {reviewer_scores[i][idx]})')
-        print()
-
-        print('*** Assigned Reviewers')
         assigned_reviewers = assignment[i].argsort()[-args.reviews_per_paper:][::-1]
-        for idx in assigned_reviewers:
-            print(f'# {reviewer_names[idx]} (Score {reviewer_scores[i][idx]})')
-        print()
+
+        if args.output_type == 'json':
+            ret_dict = {'paperAbstract': query}
+            ret_dict['similarAbstracts'] = [(scores[idx], db_abs[idx]) for idx in best_idxs]
+            ret_dict['topSimReviewers'] = [(reviewer_scores[i][idx], reviewer_names[idx]) for idx in best_reviewers]
+            ret_dict['assignedReviewers'] = [(reviewer_scores[i][idx], reviewer_names[idx]) for idx in best_reviewers]
+            print(json.dumps(ret_dict))
+        elif args.output_type == 'text':
+            print('----------------------------------------------')
+            print('*** Paper Abstract')
+            print(query)
+            print('\n*** Similar Paper Abstracts')
+            for idx in best_idxs:
+                print(f'# Score {scores[idx]}\n{db_abs[idx]}')
+            print()
+            print('\n*** Best Matched Reviewers')
+            for idx in best_reviewers:
+                print(f'# {reviewer_names[idx]} (Score {reviewer_scores[i][idx]})')
+            print('\n*** Assigned Reviewers')
+            for idx in assigned_reviewers:
+                print(f'# {reviewer_names[idx]} (Score {reviewer_scores[i][idx]})')
+            print()
+        else:
+            raise ValueError(f'Illegal output_type {args.output_type}')
+
+
+
