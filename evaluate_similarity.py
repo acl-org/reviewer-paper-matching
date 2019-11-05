@@ -87,30 +87,7 @@ def evaluate(model, params):
     assert not model.training
 
     entok = MosesTokenizer(lang='en')
-    estok = MosesTokenizer(lang='es')
-    artok = MosesTokenizer(lang='ar')
-    trtok = MosesTokenizer(lang='tr')
-
-    f = "STS/STS17-test/STS.input.track1.ar-ar.txt"
-    p,s = get_correlation(model, f, params, artok, artok, fr0=1, fr1=1)
-    print("track1.ar-ar.txt\tpearson: {:.3f}\tspearman: {:.3f}".format(p*100, s*100))
-
-    f = "STS/STS17-test/STS.input.track2.ar-en.txt"
-    p,s = get_correlation(model, f, params, entok, artok, fr0=0, fr1=1)
-    print("track2.ar-en.txt\tpearson: {:.3f}\tspearman: {:.3f}".format(p*100, s*100))
-
-    f = "STS/STS17-test/STS.input.track3.es-es.txt"
-    p,s = get_correlation(model, f, params, estok, estok, fr0=0, fr1=1)
-    print("track3.es-es.txt\tpearson: {:.3f}\tspearman: {:.3f}".format(p*100, s*100))
-
-    f = "STS/STS17-test/STS.input.track4a.es-en.txt"
-    p,s = get_correlation(model, f, params, entok, estok, fr0=0, fr1=1)
-    print("track4a.es-en.txt\tpearson: {:.3f}\tspearman: {:.3f}".format(p*100, s*100))
 
     f = "STS/STS17-test/STS.input.track5.en-en.txt"
     p,s = get_correlation(model, f, params, entok, entok, fr0=0, fr1=0)
     print("track5.en-en.txt\tpearson: {:.3f}\tspearman: {:.3f}".format(p*100, s*100))
-
-    f = "STS/STS17-test/STS.input.track6.tr-en.txt"
-    p,s = get_correlation(model, f, params, entok, trtok, fr0=0, fr1=1)
-    print("track6.tr-en.txt\tpearson: {:.3f}\tspearman: {:.3f}".format(p*100, s*100))
