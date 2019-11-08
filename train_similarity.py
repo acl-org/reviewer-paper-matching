@@ -1,4 +1,4 @@
-import utils
+import model_utils
 import random
 import numpy as np
 import sys
@@ -6,7 +6,7 @@ import argparse
 import io
 import torch
 from models import Averaging, LSTM, load_model
-from utils import Example
+from model_utils import Example
 
 random.seed(1)
 np.random.seed(1)
@@ -69,9 +69,9 @@ if args.load_file is not None:
     model.train_epochs(start_epoch=epoch)
 else:
     if args.ngrams:
-        vocab, vocab_fr = utils.get_ngrams(data, args.share_vocab, n=args.ngrams)
+        vocab, vocab_fr = model_utils.get_ngrams(data, args.share_vocab, n=args.ngrams)
     else:
-        vocab, vocab_fr = utils.get_words(data, args.share_vocab)
+        vocab, vocab_fr = model_utils.get_words(data, args.share_vocab)
 
     if args.model == "avg":
         model = Averaging(data, args, vocab, vocab_fr)

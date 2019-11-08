@@ -4,8 +4,8 @@ import numpy as np
 import time
 import torch.nn.functional as F
 import sentencepiece as spm
-import pairing
-import utils
+import model_pairing
+import model_utils
 from torch.nn.modules.distance import CosineSimilarity
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 from torch.nn.utils.rnn import pack_padded_sequence as pack
@@ -135,7 +135,7 @@ class ParaModel(nn.Module):
 
         try:
             for ep in range(start_epoch, self.args.epochs+1):
-                self.mb = utils.get_minibatches_idx(len(self.data), self.args.batchsize, shuffle=True)
+                self.mb = model_utils.get_minibatches_idx(len(self.data), self.args.batchsize, shuffle=True)
                 self.curr_idx = 0
                 self.ep_loss = 0
                 self.megabatch = []
@@ -143,7 +143,7 @@ class ParaModel(nn.Module):
                 counter = 0
 
                 while(cost is not None):
-                    cost = pairing.compute_loss_one_batch(self)
+                    cost = model_pairing.compute_loss_one_batch(self)
                     if cost is None:
                         continue
 
@@ -211,9 +211,9 @@ class Averaging(ParaModel):
             F.dropout(word_embs, training=self.training)
 
         if self.pool == "max":
-            word_embs = utils.max_pool(word_embs, lengths, self.args.gpu)
+            word_embs = model_utils.max_pool(word_embs, lengths, self.args.gpu)
         elif self.pool == "mean":
-            word_embs = utils.mean_pool(word_embs, lengths, self.args.gpu)
+            word_embs = model_utils.mean_pool(word_embs, lengths, self.args.gpu)
 
         return word_embs
 
@@ -270,9 +270,9 @@ class LSTM(ParaModel):
         all_hids = unpack(all_hids, batch_first=True)[0][_indices]
 
         if self.pool == "max":
-            embs = utils.max_pool(all_hids, lengths, self.gpu)
+            embs = model_utils.max_pool(all_hids, lengths, self.gpu)
         elif self.pool == "mean":
-            embs = utils.mean_pool(all_hids, lengths, self.gpu)
+            embs = model_utils.mean_pool(all_hids, lengths, self.gpu)
         return embs
 
     def forward(self, curr_batch):

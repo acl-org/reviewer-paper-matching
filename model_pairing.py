@@ -1,5 +1,5 @@
 import torch
-from utils import Batch
+from model_utils import Batch
 
 def get_pairs_batch(model, g1, g1_lengths, g2, g2_lengths):
     with torch.no_grad():

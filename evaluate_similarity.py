@@ -2,7 +2,7 @@ import io
 import sentencepiece as spm
 from scipy.stats import spearmanr
 from scipy.stats import pearsonr
-from utils import Example, unk_string
+from model_utils import Example, unk_string
 from sacremoses import MosesTokenizer
 
 def get_sequences(p1, p2, model, params, fr0=0, fr1=0):

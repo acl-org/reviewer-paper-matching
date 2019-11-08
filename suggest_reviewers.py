@@ -3,14 +3,16 @@ command: OMP_NUM_THREADS=12 python  nn.py --model avg --dim 300 --epochs 10 --ng
 """
 
 import json
-from utils import Example, unk_string
+from model_utils import Example, unk_string
 from sacremoses import MosesTokenizer
 import argparse
 from models import load_model
-from collections import defaultdict
 import numpy as np
 import cvxpy as cp
 import sys
+
+from suggest_utils import calc_reviewer_db_mapping
+
 sys.setrecursionlimit(10000)
 
 BATCH_SIZE = 128
@@ -68,20 +70,6 @@ def calc_similarity_matrix(model, db, quer):
     return np.matmul(quer_emb, np.transpose(db_emb))
 
 
-def calc_reviewer_db_mapping(reviewers, db, filter_field):
-    print(f'Calculating reviewer-paper mapping for {len(reviewers)} reviewers and {len(db)} papers', file=sys.stderr)
-    mapping = np.zeros( (len(reviewers), len(db)) )
-    reviewer_id_map = defaultdict(lambda: [])
-    for i, reviewer in enumerate(reviewers):
-        reviewer_id_map[reviewer].append(i)
-    for j, entry in enumerate(db):
-        for cols in entry['authors']:
-            if cols[filter_field] in reviewer_id_map:
-                for i in reviewer_id_map[cols[filter_field]]:
-                    mapping[i,j] = 1
-    return mapping
-
-
 def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
     """Calculate the aggregate reviewer score for one paper
 
@@ -108,6 +96,7 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
         else:
             raise ValueError(f'Unknown operator {operator}')
         print_progress(i, mod_size=10)
+    print('', file=sys.stderr)
     return agg
 
 
@@ -123,20 +112,26 @@ def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, max_papers
     total_sim = cp.sum(cp.multiply(reviewer_scores, assignment))
     constraints = [rev_constraint, pap_constraint]
     assign_prob = cp.Problem(cp.Maximize(total_sim), constraints)
-    assign_prob.solve(solver=cp.GLPK_MI)
+    old_stdout = sys.stdout
+    sys.stdout = sys.stderr
+    assign_prob.solve(solver=cp.GLPK_MI, verbose=True)
+    sys.stdout = old_stdout
     return assignment.value, assign_prob.value
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--submission_file", type=str, required=True, help="A line-by-line file of submissions")
+    parser.add_argument("--submission_file", type=str, required=True, help="A line-by-line JSON file of submissions")
     parser.add_argument("--db_file", type=str, required=True, help="File (in s2 json format) of relevant papers from reviewers")
     parser.add_argument("--reviewer_file", type=str, required=True, help="A file of reviewer files or IDs that can review this time")
+    parser.add_argument("--suggestion_file", type=str, required=True, help="An output file for the suggestions")
     parser.add_argument("--filter_field", type=str, default="Name", help="Which field to filter on")
     parser.add_argument("--model_file", help="filename to load the pre-trained semantic similarity file.")
     parser.add_argument("--save_paper_matrix", help="A filename for where to save the paper similarity matrix")
     parser.add_argument("--load_paper_matrix", help="A filename for where to load the cached paper similarity matrix")
+    parser.add_argument("--save_aggregate_matrix", help="A filename for where to save the reviewer-paper aggregate matrix")
+    parser.add_argument("--load_aggregate_matrix", help="A filename for where to load the cached reviewer-paper aggregate matrix")
     parser.add_argument("--max_papers_per_reviewer", default=5, type=int, help="How many papers, maximum, to assign to each reviewer")
     parser.add_argument("--reviews_per_paper", default=3, type=int, help="How many reviews to assign to each paper")
     parser.add_argument("--output_type", default="json", type=str, help="What format of output to produce (json/text)")
@@ -145,14 +140,14 @@ if __name__ == "__main__":
 
     # Load the data
     with open(args.submission_file, "r") as f:
-        submission_abs = [x.strip() for x in f]
-        submissions = [{'paperAbstract': x} for x in submission_abs]
+        submissions = [json.loads(x) for x in f]
+        submission_abs = [x['paperAbstract'] for x in submissions]
     with open(args.reviewer_file, "r") as f:
         reviewer_names = [x.strip() for x in f]
     with open(args.db_file, "r") as f:
         db = [json.loads(x) for x in f]  # for debug
         db_abs = [x['paperAbstract'] for x in db]
-    rdb = calc_reviewer_db_mapping(reviewer_names, db, 'name')
+    rdb = calc_reviewer_db_mapping(reviewer_names, db, author_col='name', author_field='authors')
 
     # Calculate or load paper similarity matrix
     if args.load_paper_matrix:
@@ -168,9 +163,14 @@ if __name__ == "__main__":
             np.save(args.save_paper_matrix, mat)
 
     # Calculate reviewer scores based on paper similarity scores
-    reviewer_scores = np.zeros( (len(submissions), len(reviewer_names)) )
-    print('Calculating aggregate reviewer scores', file=sys.stderr)
-    reviewer_scores = calc_aggregate_reviewer_score(rdb, mat, 'weighted_top3')
+    if args.load_aggregate_matrix:
+        reviewer_scores = np.load(args.load_aggregate_matrix)
+        assert(reviewer_scores.shape[0] == len(submission_abs) and reviewer_scores.shape[1] == len(reviewer_names))
+    else:
+        print('Calculating aggregate reviewer scores', file=sys.stderr)
+        reviewer_scores = calc_aggregate_reviewer_score(rdb, mat, 'weighted_top3')
+        if args.save_aggregate_matrix:
+            np.save(args.save_aggregate_matrix, reviewer_scores)
 
     # Calculate a reviewer assignment based on the constraints
     print('Calculating assignment of reviewers', file=sys.stderr)
@@ -179,35 +179,40 @@ if __name__ == "__main__":
                                              reviews_per_paper=args.reviews_per_paper)
 
     # Print out the results
-    for i, query in enumerate(submission_abs):
-        scores = mat[i]
-        best_idxs = scores.argsort()[-5:][::-1]
-        best_reviewers = reviewer_scores[i].argsort()[-5:][::-1]
-        assigned_reviewers = assignment[i].argsort()[-args.reviews_per_paper:][::-1]
+    with open(args.suggestion_file, 'w') as outf:
+        for i, query in enumerate(submissions):
+            scores = mat[i]
+            best_idxs = scores.argsort()[-5:][::-1]
+            best_reviewers = reviewer_scores[i].argsort()[-5:][::-1]
+            assigned_reviewers = assignment[i].argsort()[-args.reviews_per_paper:][::-1]
 
-        if args.output_type == 'json':
-            ret_dict = {'paperAbstract': query}
-            ret_dict['similarAbstracts'] = [(scores[idx], db_abs[idx]) for idx in best_idxs]
-            ret_dict['topSimReviewers'] = [(reviewer_scores[i][idx], reviewer_names[idx]) for idx in best_reviewers]
-            ret_dict['assignedReviewers'] = [(reviewer_scores[i][idx], reviewer_names[idx]) for idx in best_reviewers]
-            print(json.dumps(ret_dict))
-        elif args.output_type == 'text':
-            print('----------------------------------------------')
-            print('*** Paper Abstract')
-            print(query)
-            print('\n*** Similar Paper Abstracts')
-            for idx in best_idxs:
-                print(f'# Score {scores[idx]}\n{db_abs[idx]}')
-            print()
-            print('\n*** Best Matched Reviewers')
-            for idx in best_reviewers:
-                print(f'# {reviewer_names[idx]} (Score {reviewer_scores[i][idx]})')
-            print('\n*** Assigned Reviewers')
-            for idx in assigned_reviewers:
-                print(f'# {reviewer_names[idx]} (Score {reviewer_scores[i][idx]})')
-            print()
-        else:
-            raise ValueError(f'Illegal output_type {args.output_type}')
+            if args.output_type == 'json':
+                ret_dict = dict(query)
+                ret_dict['similarAbstracts'] = [{'paperAbstract': db_abs[idx], 'score': scores[idx]} for idx in best_idxs]
+                ret_dict['topSimReviewers'] = [{'name': reviewer_names[idx], 'score': reviewer_scores[i][idx]} for idx in best_reviewers]
+                ret_dict['assignedReviewers'] = [{'name': reviewer_names[idx], 'score': reviewer_scores[i][idx]} for idx in assigned_reviewers]
+                print(json.dumps(ret_dict), file=outf)
+            elif args.output_type == 'text':
+                print('----------------------------------------------', file=outf)
+                print('*** Paper Title', file=outf)
+                print(query['title'], file=outf)
+                print('*** Paper Abstract', file=outf)
+                print(query['paperAbstract'], file=outf)
+                print('\n*** Similar Papers', file=outf)
+                for idx in best_idxs:
+                    my_title = db[idx]['title']
+                    my_abs = db[idx]['paperAbstract']
+                    print(f'# {my_title} (Score {scores[idx]})\n{my_abs}', file=outf)
+                print('', file=outf)
+                print('\n*** Best Matched Reviewers', file=outf)
+                for idx in best_reviewers:
+                    print(f'# {reviewer_names[idx]} (Score {reviewer_scores[i][idx]})', file=outf)
+                print('\n*** Assigned Reviewers', file=outf)
+                for idx in assigned_reviewers:
+                    print(f'# {reviewer_names[idx]} (Score {reviewer_scores[i][idx]})', file=outf)
+                print('', file=outf)
+            else:
+                raise ValueError(f'Illegal output_type {args.output_type}')
 
-
+    print(f'Done creating suggestions, written to {args.suggestion_file}', file=sys.stderr)
 
