@@ -17,10 +17,10 @@ BATCH_SIZE = 128
 entok = MosesTokenizer(lang='en')
 
 
-def print_progress(i):
-    if i != 0 and i % BATCH_SIZE == 0:
+def print_progress(i, mod_size=BATCH_SIZE):
+    if i != 0 and i % mod_size == 0:
         sys.stderr.write('.')
-        if int(i/BATCH_SIZE) % 50 == 0:
+        if int(i/mod_size) % 50 == 0:
             print(i, file=sys.stderr)
 
 
@@ -82,27 +82,32 @@ def calc_reviewer_db_mapping(reviewers, db, filter_field):
     return mapping
 
 
-def calc_aggregate_reviewer_score(rdb, scores, operator='max'):
+def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
     """Calculate the aggregate reviewer score for one paper
 
-    :param rdb: Reviewer DB. Numpy matrix of reviewers x DB_size
-    :param simscores: Similarity scores between the current paper and the DB. Numpy array of length DB_size
+    :param rdb: Reviewer DB. NP matrix of reviewers by DB papers
+    :param scores: NP matrix of similarity scores between the current papers (rows) and the DB papers (columns)
     :param operator: Which operator to apply (max, weighted_topK)
     :return: Numpy matrix of length reviewers indicating the score for that reviewer
     """
-    INVALID_SCORE = 0
-    scored_rdb = rdb * scores.reshape((1, scores.shape[0])) + (1-rdb) * INVALID_SCORE
-    if operator == 'max':
-        agg = np.amax(scored_rdb, axis=1)
-    elif operator.startswith('weighted_top'):
-        k = int(operator[12:])
-        weighting = np.reshape(1/np.array(range(1, k+1)), (1,k))
-        scored_rdb.sort(axis=1)
-        topk = scored_rdb[:,-k:]
-        # print(topk)
-        agg = (topk*weighting).sum(axis=1)
-    else:
-        raise ValueError(f'Unknown operator {operator}')
+    agg = np.zeros( (all_scores.shape[0], len(rdb)) )
+    print(f'Calculating aggregate scores for {all_scores.shape[0]} examples (.=10 examples)', file=sys.stderr)
+    for i in range(all_scores.shape[0]):
+        scores = all_scores[i]
+        INVALID_SCORE = 0
+        scored_rdb = rdb * scores.reshape((1, scores.shape[0])) + (1-rdb) * INVALID_SCORE
+        if operator == 'max':
+            agg[i] = np.amax(scored_rdb, axis=1)
+        elif operator.startswith('weighted_top'):
+            k = int(operator[12:])
+            weighting = np.reshape(1/np.array(range(1, k+1)), (1,k))
+            scored_rdb.sort(axis=1)
+            topk = scored_rdb[:,-k:]
+            # print(topk)
+            agg[i] = (topk*weighting).sum(axis=1)
+        else:
+            raise ValueError(f'Unknown operator {operator}')
+        print_progress(i, mod_size=10)
     return agg
 
 
@@ -165,8 +170,7 @@ if __name__ == "__main__":
     # Calculate reviewer scores based on paper similarity scores
     reviewer_scores = np.zeros( (len(submissions), len(reviewer_names)) )
     print('Calculating aggregate reviewer scores', file=sys.stderr)
-    for i, query in enumerate(submissions):
-        reviewer_scores[i] = calc_aggregate_reviewer_score(rdb, mat[i], 'weighted_top3')
+    reviewer_scores = calc_aggregate_reviewer_score(rdb, mat, 'weighted_top3')
 
     # Calculate a reviewer assignment based on the constraints
     print('Calculating assignment of reviewers', file=sys.stderr)
@@ -175,7 +179,7 @@ if __name__ == "__main__":
                                              reviews_per_paper=args.reviews_per_paper)
 
     # Print out the results
-    for i, query in enumerate(submissions):
+    for i, query in enumerate(submission_abs):
         scores = mat[i]
         best_idxs = scores.argsort()[-5:][::-1]
         best_reviewers = reviewer_scores[i].argsort()[-5:][::-1]

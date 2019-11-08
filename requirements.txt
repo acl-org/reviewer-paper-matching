@@ -3,3 +3,4 @@ scipy
 sentencepiece
 sacremoses
 cvxpy
+cvxopt
