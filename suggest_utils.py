@@ -29,3 +29,26 @@ def calc_reviewer_db_mapping(reviewers, db, author_col='name', author_field='aut
         if num < warn_under:
             print(f'WARNING: Reviewer {name} has {num} papers in the database', file=sys.stderr)
     return mapping
+
+def print_text_report(query, file):
+    print('----------------------------------------------', file=file)
+    print('*** Paper Title', file=file)
+    print(query['title'], file=file)
+    print('*** Paper Abstract', file=file)
+    print(query['paperAbstract'], file=file)
+    print('\n*** Similar Papers', file=file)
+
+    for x in query['similarPapers']:
+        my_title, my_abs, my_score = x['title'], x['paperAbstract'], x['score']
+        print(f'# {my_title} (Score {my_score})\n{my_abs}', file=file)
+    print('', file=file)
+    print('\n*** Best Matched Reviewers', file=file)
+    for x in query['topSimReviewers']:
+        my_name, my_score = x['name'], x['score']
+        print(f'# {my_name} (Score {my_score})', file=file)
+    print('\n*** Assigned Reviewers', file=file)
+    for x in query['assignedReviewers']:
+        my_name, my_score = x['name'], x['score']
+        print(f'# {my_name} (Score {my_score})', file=file)
+    print('', file=file)
+

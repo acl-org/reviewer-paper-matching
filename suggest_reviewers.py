@@ -7,7 +7,7 @@ import numpy as np
 import cvxpy as cp
 import sys
 
-from suggest_utils import calc_reviewer_db_mapping
+from suggest_utils import calc_reviewer_db_mapping, print_text_report
 
 BATCH_SIZE = 128
 entok = MosesTokenizer(lang='en')
@@ -187,31 +187,15 @@ if __name__ == "__main__":
             best_reviewers = reviewer_scores[i].argsort()[-5:][::-1]
             assigned_reviewers = assignment[i].argsort()[-args.reviews_per_paper:][::-1]
 
+            ret_dict = dict(query)
+            ret_dict['similarPapers'] = [{'title': db[idx]['title'], 'paperAbstract': db[idx]['paperAbstract'], 'score': scores[idx]} for idx in best_idxs]
+            ret_dict['topSimReviewers'] = [{'name': reviewer_names[idx], 'score': reviewer_scores[i][idx]} for idx in best_reviewers]
+            ret_dict['assignedReviewers'] = [{'name': reviewer_names[idx], 'score': reviewer_scores[i][idx]} for idx in assigned_reviewers]
+
             if args.output_type == 'json':
-                ret_dict = dict(query)
-                ret_dict['similarAbstracts'] = [{'paperAbstract': db_abs[idx], 'score': scores[idx]} for idx in best_idxs]
-                ret_dict['topSimReviewers'] = [{'name': reviewer_names[idx], 'score': reviewer_scores[i][idx]} for idx in best_reviewers]
-                ret_dict['assignedReviewers'] = [{'name': reviewer_names[idx], 'score': reviewer_scores[i][idx]} for idx in assigned_reviewers]
                 print(json.dumps(ret_dict), file=outf)
             elif args.output_type == 'text':
-                print('----------------------------------------------', file=outf)
-                print('*** Paper Title', file=outf)
-                print(query['title'], file=outf)
-                print('*** Paper Abstract', file=outf)
-                print(query['paperAbstract'], file=outf)
-                print('\n*** Similar Papers', file=outf)
-                for idx in best_idxs:
-                    my_title = db[idx]['title']
-                    my_abs = db[idx]['paperAbstract']
-                    print(f'# {my_title} (Score {scores[idx]})\n{my_abs}', file=outf)
-                print('', file=outf)
-                print('\n*** Best Matched Reviewers', file=outf)
-                for idx in best_reviewers:
-                    print(f'# {reviewer_names[idx]} (Score {reviewer_scores[i][idx]})', file=outf)
-                print('\n*** Assigned Reviewers', file=outf)
-                for idx in assigned_reviewers:
-                    print(f'# {reviewer_names[idx]} (Score {reviewer_scores[i][idx]})', file=outf)
-                print('', file=outf)
+                print_text_report(ret_dict, file=outf)
             else:
                 raise ValueError(f'Illegal output_type {args.output_type}')
 
