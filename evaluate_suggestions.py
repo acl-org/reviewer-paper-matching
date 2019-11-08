@@ -25,7 +25,7 @@ if __name__ == "__main__":
     all_assignments = np.sum(mapping)
 
     # Total of all bid scores, minus one, divided by number of assignments
-    for bid in range(1, 4):
-        bid_count = np.sum(np.where(mapping == 1 and bids == bid, 0, 1))
+    for bid in range(4):
+        bid_count = np.sum(np.where((mapping == 1) & (bids == bid), 1, 0))
         print(f'Ratio of {bid}: {bid_count/all_assignments}')
 

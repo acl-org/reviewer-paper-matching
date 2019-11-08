@@ -1,7 +1,3 @@
-"""
-command: OMP_NUM_THREADS=12 python  nn.py --model avg --dim 300 --epochs 10 --ngrams 3 --share-vocab 1 --dropout 0.3 --gpu 0 --save-every-epoch 1 --nn-file s2/s2-filtered-aclweb.abs --load-file model_1.pt 
-"""
-
 import json
 from model_utils import Example, unk_string
 from sacremoses import MosesTokenizer
@@ -12,8 +8,6 @@ import cvxpy as cp
 import sys
 
 from suggest_utils import calc_reviewer_db_mapping
-
-sys.setrecursionlimit(10000)
 
 BATCH_SIZE = 128
 entok = MosesTokenizer(lang='en')
@@ -73,26 +67,26 @@ def calc_similarity_matrix(model, db, quer):
 def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
     """Calculate the aggregate reviewer score for one paper
 
-    :param rdb: Reviewer DB. NP matrix of reviewers by DB papers
+    :param rdb: Reviewer DB. NP matrix of DB papers by reviewers
     :param scores: NP matrix of similarity scores between the current papers (rows) and the DB papers (columns)
     :param operator: Which operator to apply (max, weighted_topK)
     :return: Numpy matrix of length reviewers indicating the score for that reviewer
     """
-    agg = np.zeros( (all_scores.shape[0], len(rdb)) )
+    agg = np.zeros( (all_scores.shape[0], rdb.shape[1]) )
     print(f'Calculating aggregate scores for {all_scores.shape[0]} examples (.=10 examples)', file=sys.stderr)
     for i in range(all_scores.shape[0]):
         scores = all_scores[i]
         INVALID_SCORE = 0
-        scored_rdb = rdb * scores.reshape((1, scores.shape[0])) + (1-rdb) * INVALID_SCORE
+        scored_rdb = rdb * scores.reshape((len(scores), 1)) + (1-rdb) * INVALID_SCORE
         if operator == 'max':
-            agg[i] = np.amax(scored_rdb, axis=1)
+            agg[i] = np.amax(scored_rdb, axis=0)
         elif operator.startswith('weighted_top'):
             k = int(operator[12:])
-            weighting = np.reshape(1/np.array(range(1, k+1)), (1,k))
-            scored_rdb.sort(axis=1)
-            topk = scored_rdb[:,-k:]
+            weighting = np.reshape(1/np.array(range(1, k+1)), (k,1))
+            scored_rdb.sort(axis=0)
+            topk = scored_rdb[-k:,:]
             # print(topk)
-            agg[i] = (topk*weighting).sum(axis=1)
+            agg[i] = (topk*weighting).sum(axis=0)
         else:
             raise ValueError(f'Unknown operator {operator}')
         print_progress(i, mod_size=10)
@@ -112,10 +106,7 @@ def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, max_papers
     total_sim = cp.sum(cp.multiply(reviewer_scores, assignment))
     constraints = [rev_constraint, pap_constraint]
     assign_prob = cp.Problem(cp.Maximize(total_sim), constraints)
-    old_stdout = sys.stdout
-    sys.stdout = sys.stderr
     assign_prob.solve(solver=cp.GLPK_MI, verbose=True)
-    sys.stdout = old_stdout
     return assignment.value, assign_prob.value
 
 if __name__ == "__main__":
@@ -126,6 +117,8 @@ if __name__ == "__main__":
     parser.add_argument("--db_file", type=str, required=True, help="File (in s2 json format) of relevant papers from reviewers")
     parser.add_argument("--reviewer_file", type=str, required=True, help="A file of reviewer files or IDs that can review this time")
     parser.add_argument("--suggestion_file", type=str, required=True, help="An output file for the suggestions")
+    parser.add_argument("--bid_file", type=str, default=None, help="A file containing numpy array of bids (0 = COI, 1 = no, 2 = maybe, 3 = yes)."+
+                                                                   " This will be used to remove COIs, so just '0' and '3' is fine as well.")
     parser.add_argument("--filter_field", type=str, default="Name", help="Which field to filter on")
     parser.add_argument("--model_file", help="filename to load the pre-trained semantic similarity file.")
     parser.add_argument("--save_paper_matrix", help="A filename for where to save the paper similarity matrix")
@@ -172,11 +165,19 @@ if __name__ == "__main__":
         if args.save_aggregate_matrix:
             np.save(args.save_aggregate_matrix, reviewer_scores)
 
+    # Load and process COIs
+    cois = np.where(np.load(args.bid_file) == 0, 1, 0) if args.bid_file else None
+    if cois is not None:
+        num_cois = np.sum(cois)
+        print(f'Applying {num_cois} COIs', file=sys.stderr)
+        reviewer_scores = np.where(cois == 0, reviewer_scores, -1e5)
+
     # Calculate a reviewer assignment based on the constraints
     print('Calculating assignment of reviewers', file=sys.stderr)
     assignment, assignment_score = create_suggested_assignment(reviewer_scores,
                                              max_papers_per_reviewer=args.max_papers_per_reviewer,
                                              reviews_per_paper=args.reviews_per_paper)
+    print(f'Done calculating assignment, total score: {assignment_score}', file=sys.stderr)
 
     # Print out the results
     with open(args.suggestion_file, 'w') as outf:
