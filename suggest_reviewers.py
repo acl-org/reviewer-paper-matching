@@ -145,11 +145,12 @@ if __name__ == "__main__":
         submissions = [json.loads(x) for x in f]
         submission_abs = [x['paperAbstract'] for x in submissions]
     with open(args.reviewer_file, "r") as f:
-        reviewer_names = [x.strip() for x in f]
+        reviewer_aliases = [x.strip().split('|') for x in f]
+        reviewer_names = [x[0] for x in reviewer_aliases]
     with open(args.db_file, "r") as f:
         db = [json.loads(x) for x in f]  # for debug
         db_abs = [x['paperAbstract'] for x in db]
-    rdb = calc_reviewer_db_mapping(reviewer_names, db, author_col='name', author_field='authors')
+    rdb = calc_reviewer_db_mapping(reviewer_aliases, db, author_col='name', author_field='authors')
 
     # Calculate or load paper similarity matrix
     if args.load_paper_matrix:

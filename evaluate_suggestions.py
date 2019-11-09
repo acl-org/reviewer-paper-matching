@@ -18,9 +18,9 @@ if __name__ == "__main__":
     with open(args.suggestion_file, "r") as f:
         submissions = [json.loads(x) for x in f]
     with open(args.reviewer_file, "r") as f:
-        reviewer_names = [x.strip() for x in f]
+        reviewer_aliases = [x.strip().split('|') for x in f]
     bids = np.load(args.bid_file)
-    mapping = suggest_utils.calc_reviewer_db_mapping(reviewer_names, submissions, author_field='assignedReviewers')
+    mapping = suggest_utils.calc_reviewer_db_mapping(reviewer_aliases, submissions, author_field='assignedReviewers')
 
     all_assignments = np.sum(mapping)
 

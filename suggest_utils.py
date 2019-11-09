@@ -17,8 +17,9 @@ def calc_reviewer_db_mapping(reviewers, db, author_col='name', author_field='aut
     print(f'Calculating reviewer-paper mapping for {len(reviewers)} reviewers and {len(db)} papers', file=sys.stderr)
     mapping = np.zeros( (len(db), len(reviewers)) )
     reviewer_id_map = defaultdict(lambda: [])
-    for j, reviewer in enumerate(reviewers):
-        reviewer_id_map[reviewer].append(j)
+    for j, rev_aliases in enumerate(reviewers):
+        for reviewer in rev_aliases:
+            reviewer_id_map[reviewer].append(j)
     for i, entry in enumerate(db):
         for cols in entry[author_field]:
             if cols[author_col] in reviewer_id_map:
