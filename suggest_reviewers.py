@@ -94,17 +94,24 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
     return agg
 
 
-def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, max_papers_per_reviewer=5):
+def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers_per_reviewer=0, max_papers_per_reviewer=5):
     num_pap, num_rev = reviewer_scores.shape
     if num_rev*max_papers_per_reviewer < num_pap*reviews_per_paper:
         raise ValueError(f'There are not enough reviewers ({num_rev}) review all the papers ({num_pap})'
                          f' given a constraint of {reviews_per_paper} reviews per paper and'
                          f' {max_papers_per_reviewer} reviews per reviewer')
+    if num_rev*min_papers_per_reviewer > num_pap*reviews_per_paper:
+        raise ValueError(f'There are too many reviewers ({num_rev}) to review all the papers ({num_pap})'
+                         f' given a constraint of {reviews_per_paper} reviews per paper and'
+                         f' a minimum of {min_papers_per_reviewer} reviews per reviewer')
     assignment = cp.Variable(shape=reviewer_scores.shape, boolean=True)
-    rev_constraint = cp.sum(assignment, axis=0) <= max_papers_per_reviewer
+    maxrev_constraint = cp.sum(assignment, axis=0) <= max_papers_per_reviewer
     pap_constraint = cp.sum(assignment, axis=1) == reviews_per_paper
+    constraints = [maxrev_constraint, pap_constraint]
+    if min_papers_per_reviewer > 0:
+        minrev_constraint = cp.sum(assignment, axis=0) >= min_papers_per_reviewer
+        constraints.append(minrev_constraint)
     total_sim = cp.sum(cp.multiply(reviewer_scores, assignment))
-    constraints = [rev_constraint, pap_constraint]
     assign_prob = cp.Problem(cp.Maximize(total_sim), constraints)
     assign_prob.solve(solver=cp.GLPK_MI, verbose=True)
     return assignment.value, assign_prob.value
@@ -121,11 +128,13 @@ if __name__ == "__main__":
                                                                    " This will be used to remove COIs, so just '0' and '3' is fine as well.")
     parser.add_argument("--filter_field", type=str, default="Name", help="Which field to filter on")
     parser.add_argument("--model_file", help="filename to load the pre-trained semantic similarity file.")
+    parser.add_argument("--aggregator", type=str, default="weighted_top3", help="Aggregation type (max, weighted_topN where N is a number)")
     parser.add_argument("--save_paper_matrix", help="A filename for where to save the paper similarity matrix")
     parser.add_argument("--load_paper_matrix", help="A filename for where to load the cached paper similarity matrix")
     parser.add_argument("--save_aggregate_matrix", help="A filename for where to save the reviewer-paper aggregate matrix")
     parser.add_argument("--load_aggregate_matrix", help="A filename for where to load the cached reviewer-paper aggregate matrix")
     parser.add_argument("--max_papers_per_reviewer", default=5, type=int, help="How many papers, maximum, to assign to each reviewer")
+    parser.add_argument("--min_papers_per_reviewer", default=0, type=int, help="How many papers, minimum, to assign to each reviewer")
     parser.add_argument("--reviews_per_paper", default=3, type=int, help="How many reviews to assign to each paper")
     parser.add_argument("--output_type", default="json", type=str, help="What format of output to produce (json/text)")
 
@@ -161,7 +170,7 @@ if __name__ == "__main__":
         assert(reviewer_scores.shape[0] == len(submission_abs) and reviewer_scores.shape[1] == len(reviewer_names))
     else:
         print('Calculating aggregate reviewer scores', file=sys.stderr)
-        reviewer_scores = calc_aggregate_reviewer_score(rdb, mat, 'weighted_top3')
+        reviewer_scores = calc_aggregate_reviewer_score(rdb, mat, args.aggregator)
         if args.save_aggregate_matrix:
             np.save(args.save_aggregate_matrix, reviewer_scores)
 
@@ -175,6 +184,7 @@ if __name__ == "__main__":
     # Calculate a reviewer assignment based on the constraints
     print('Calculating assignment of reviewers', file=sys.stderr)
     assignment, assignment_score = create_suggested_assignment(reviewer_scores,
+                                             min_papers_per_reviewer=args.min_papers_per_reviewer,
                                              max_papers_per_reviewer=args.max_papers_per_reviewer,
                                              reviews_per_paper=args.reviews_per_paper)
     print(f'Done calculating assignment, total score: {assignment_score}', file=sys.stderr)
