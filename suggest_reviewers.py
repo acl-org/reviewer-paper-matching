@@ -122,11 +122,11 @@ if __name__ == "__main__":
 
     parser.add_argument("--submission_file", type=str, required=True, help="A line-by-line JSON file of submissions")
     parser.add_argument("--db_file", type=str, required=True, help="File (in s2 json format) of relevant papers from reviewers")
-    parser.add_argument("--reviewer_file", type=str, required=True, help="A file of reviewer files or IDs that can review this time")
+    parser.add_argument("--reviewer_file", type=str, required=True, help="A tsv file of reviewer names and IDs that can review this time")
     parser.add_argument("--suggestion_file", type=str, required=True, help="An output file for the suggestions")
     parser.add_argument("--bid_file", type=str, default=None, help="A file containing numpy array of bids (0 = COI, 1 = no, 2 = maybe, 3 = yes)."+
                                                                    " This will be used to remove COIs, so just '0' and '3' is fine as well.")
-    parser.add_argument("--filter_field", type=str, default="Name", help="Which field to filter on")
+    parser.add_argument("--filter_field", type=str, default="name", help="Which field to use as the reviewer ID (name/id)")
     parser.add_argument("--model_file", help="filename to load the pre-trained semantic similarity file.")
     parser.add_argument("--aggregator", type=str, default="weighted_top3", help="Aggregation type (max, weighted_topN where N is a number)")
     parser.add_argument("--save_paper_matrix", help="A filename for where to save the paper similarity matrix")
@@ -145,12 +145,12 @@ if __name__ == "__main__":
         submissions = [json.loads(x) for x in f]
         submission_abs = [x['paperAbstract'] for x in submissions]
     with open(args.reviewer_file, "r") as f:
-        reviewer_aliases = [x.strip().split('|') for x in f]
-        reviewer_names = [x[0] for x in reviewer_aliases]
+        reviewer_data = [[y.split('|') for y in x.strip().split('\t')] for x in f]
+        reviewer_names = [x[0][0] for x in reviewer_data]
     with open(args.db_file, "r") as f:
         db = [json.loads(x) for x in f]  # for debug
         db_abs = [x['paperAbstract'] for x in db]
-    rdb = calc_reviewer_db_mapping(reviewer_aliases, db, author_col='name', author_field='authors')
+    rdb = calc_reviewer_db_mapping(reviewer_data, db, author_col=args.filter_field, author_field='authors')
 
     # Calculate or load paper similarity matrix
     if args.load_paper_matrix:
@@ -200,8 +200,8 @@ if __name__ == "__main__":
 
             ret_dict = dict(query)
             ret_dict['similarPapers'] = [{'title': db[idx]['title'], 'paperAbstract': db[idx]['paperAbstract'], 'score': scores[idx]} for idx in best_idxs]
-            ret_dict['topSimReviewers'] = [{'name': reviewer_names[idx], 'score': reviewer_scores[i][idx]} for idx in best_reviewers]
-            ret_dict['assignedReviewers'] = [{'name': reviewer_names[idx], 'score': reviewer_scores[i][idx]} for idx in assigned_reviewers]
+            ret_dict['topSimReviewers'] = [{'name': reviewer_names[idx], 'ids': reviewer_data[idx][1], 'score': reviewer_scores[i][idx]} for idx in best_reviewers]
+            ret_dict['assignedReviewers'] = [{'name': reviewer_names[idx], 'ids': reviewer_data[idx][1], 'score': reviewer_scores[i][idx]} for idx in assigned_reviewers]
 
             if args.output_type == 'json':
                 print(json.dumps(ret_dict), file=outf)
