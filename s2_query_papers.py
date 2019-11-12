@@ -1,8 +1,7 @@
 import argparse
-import itertools
 import requests
 import json
-import numpy as np
+import time
 import suggest_utils
 import sys
 
@@ -34,13 +33,23 @@ if __name__ == "__main__":
 
     pid_len = len(paper_ids)
     print(f'Querying s2 for {pid_len} remaining papers (.=50 papers)', file=sys.stderr)
+    sleep_time = 1
     for i, pid in enumerate(paper_ids):
         r = requests.get(f'http://api.semanticscholar.org/v1/paper/{pid}')
-        pmap = r.json()
-        pmap = {v: pmap[k] for (k, v) in paper_info.items()}
-        for i, auth in enumerate(pmap['authors']):
-            pmap['authors'][i] = {'name': auth['name'], 'ids': [auth['authorId']]}
-        print(json.dumps(pmap))
-        suggest_utils.print_progress(i, 50)
+        while r.status_code == 429:
+            sleep_time *= 2
+            print(f'WARNING: Hit rate limit. Increasing sleep to {sleep_time} ms', file=sys.stderr)
+            time.sleep(sleep_time / 1000.0)
+            r = requests.get(f'http://api.semanticscholar.org/v1/paper/{pid}')
+        if r.status_code != 200:
+            print(f'WARNING: Could not retrieve paper ID {pid}', file=sys.stderr)
+        else:
+            pmap = r.json()
+            pmap = {v: pmap[k] for (k, v) in paper_info.items()}
+            for j, auth in enumerate(pmap['authors']):
+                pmap['authors'][j] = {'name': auth['name'], 'ids': [auth['authorId']]}
+            print(json.dumps(pmap))
+            suggest_utils.print_progress(i, 50)
+        time.sleep(sleep_time / 1000.0)
 
 
