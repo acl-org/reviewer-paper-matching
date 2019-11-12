@@ -4,3 +4,4 @@ sentencepiece
 sacremoses
 cvxpy
 cvxopt
+requests
