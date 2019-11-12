@@ -7,17 +7,10 @@ import numpy as np
 import cvxpy as cp
 import sys
 
-from suggest_utils import calc_reviewer_db_mapping, print_text_report
+from suggest_utils import calc_reviewer_db_mapping, print_text_report, print_progress
 
 BATCH_SIZE = 128
 entok = MosesTokenizer(lang='en')
-
-
-def print_progress(i, mod_size=BATCH_SIZE):
-    if i != 0 and i % mod_size == 0:
-        sys.stderr.write('.')
-        if int(i/mod_size) % 50 == 0:
-            print(i, file=sys.stderr)
 
 
 def create_embeddings(model, examps):
@@ -39,7 +32,7 @@ def create_embeddings(model, examps):
         if len(wp1.embeddings) == 0:
             wp1.embeddings.append(model.vocab[unk_string])
         data.append(wp1)
-        print_progress(i)
+        print_progress(i, BATCH_SIZE)
     print("", file=sys.stderr)
     # Create embeddings
     print(f'Embedding {len(examps)} examples (.={BATCH_SIZE} examples)', file=sys.stderr)
@@ -52,7 +45,7 @@ def create_embeddings(model, examps):
         vecs = vecs.detach().cpu().numpy()
         vecs = vecs / np.sqrt((vecs * vecs).sum(axis=1))[:, None] #normalize for NN search
         embeddings[i:max_idx] = vecs
-        print_progress(i)
+        print_progress(i, BATCH_SIZE)
     print("", file=sys.stderr)
     return embeddings
 

@@ -23,22 +23,20 @@ if __name__ == "__main__":
             for myid in x[1]:
                 reviewer_ids.add(myid)
 
-    retrieved_papers = {}
-    for rid in reviewer_ids:
+    reviewer_papers = set()
+    rev_len = len(reviewer_ids)
+    print(f'Querying s2 for {rev_len} reviewers (.=50 reviewers)', file=sys.stderr)
+    for i, rid in enumerate(reviewer_ids):
         r = requests.get(f'http://api.semanticscholar.org/v1/author/{rid}')
         if r.status_code != 200:
-            raise ValueError(f'Could not access rid {rid}')
-        user = r.json()
-        # print(json.dumps(user))
-        for paper in user['papers']:
-            pid = paper['paperId']
-            if pid not in retrieved_papers:
-                r = requests.get(f'http://api.semanticscholar.org/v1/paper/{pid}')
-                pmap = r.json()
-                pmap = {v: pmap[k] for (k, v) in paper_info.items()}
-                for i, auth in enumerate(pmap['authors']):
-                    pmap['authors'][i] = {'name': auth['name'], 'ids': [auth['authorId']]}
-                print(json.dumps(pmap))
-                retrieved_papers[pid] = 1
+            print(f'WARNING: Could not access rid {rid}', file=sys.stderr)
+        else:
+            user = r.json()
+            # print(json.dumps(user))
+            for paper in user['papers']:
+                reviewer_papers.add(paper['paperId'])
+            suggest_utils.print_progress(i, 50)
+    for x in reviewer_papers:
+        print(x)
 
 

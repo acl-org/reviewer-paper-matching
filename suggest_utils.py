@@ -64,3 +64,9 @@ def print_text_report(query, file):
         print(f'# {my_name} (Score {my_score})', file=file)
     print('', file=file)
 
+
+def print_progress(i, mod_size):
+    if i != 0 and i % mod_size == 0:
+        sys.stderr.write('.')
+        if int(i/mod_size) % 50 == 0:
+            print(i, file=sys.stderr)
