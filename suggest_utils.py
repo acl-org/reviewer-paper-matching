@@ -6,8 +6,9 @@ import numpy as np
 def calc_reviewer_id_mapping(reviewers, author_col):
     assert(author_col == 'name' or author_col == 'id')
     reviewer_id_map = defaultdict(lambda: [])
+    author_col_plural = author_col+'s'
     for j, x in enumerate(reviewers):
-        for reviewer in x[0 if author_col == 'name' else 1]:
+        for reviewer in x[author_col_plural]:
             reviewer_id_map[reviewer].append(j)
     return reviewer_id_map
 

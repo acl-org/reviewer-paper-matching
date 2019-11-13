@@ -115,7 +115,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--submission_file", type=str, required=True, help="A line-by-line JSON file of submissions")
     parser.add_argument("--db_file", type=str, required=True, help="File (in s2 json format) of relevant papers from reviewers")
-    parser.add_argument("--reviewer_file", type=str, required=True, help="A tsv file of reviewer names and IDs that can review this time")
+    parser.add_argument("--reviewer_file", type=str, required=True, help="A json file of reviewer names and IDs that can review this time")
     parser.add_argument("--suggestion_file", type=str, required=True, help="An output file for the suggestions")
     parser.add_argument("--bid_file", type=str, default=None, help="A file containing numpy array of bids (0 = COI, 1 = no, 2 = maybe, 3 = yes)."+
                                                                    " This will be used to remove COIs, so just '0' and '3' is fine as well.")
@@ -138,8 +138,8 @@ if __name__ == "__main__":
         submissions = [json.loads(x) for x in f]
         submission_abs = [x['paperAbstract'] for x in submissions]
     with open(args.reviewer_file, "r") as f:
-        reviewer_data = [[y.split('|') for y in x.strip().split('\t')] for x in f]
-        reviewer_names = [x[0][0] for x in reviewer_data]
+        reviewer_data = [json.loads(x) for x in f]
+        reviewer_names = [x['names'][0] for x in reviewer_data]
     with open(args.db_file, "r") as f:
         db = [json.loads(x) for x in f]  # for debug
         db_abs = [x['paperAbstract'] for x in db]

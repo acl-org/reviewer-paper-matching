@@ -1,4 +1,6 @@
 import argparse
+import json
+
 import requests
 import suggest_utils
 import sys
@@ -10,15 +12,15 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--reviewer_file", type=str, required=True, help="A tsv file of reviewer names and IDs to query")
+    parser.add_argument("--reviewer_file", type=str, required=True, help="A json file of reviewer names and IDs to query")
 
     args = parser.parse_args()
 
     with open(args.reviewer_file, "r") as f:
-        reviewer_data = [[y.split('|') for y in x.strip().split('\t')] for x in f]
+        reviewer_data = [json.loads(line) for line in f]
         reviewer_ids = set()
         for x in reviewer_data:
-            for myid in x[1]:
+            for myid in x['ids']:
                 reviewer_ids.add(myid)
 
     reviewer_papers = set()
