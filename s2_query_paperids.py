@@ -2,9 +2,10 @@ import argparse
 import json
 
 import requests
-import suggest_utils
 import sys
 import time
+
+from tqdm import tqdm  # Progress bar
 
 paper_info = {
     "paperId": "id",
@@ -41,7 +42,7 @@ if __name__ == "__main__":
     sleep_time = 1
     with requests.Session() as session:
         session.verify = False  # Not verifying SSL cert speeds things up.
-        for i, rid in enumerate(reviewer_ids):
+        for i, rid in tqdm(enumerate(reviewer_ids)):
             r = session.get(f"http://api.semanticscholar.org/v1/author/{rid}")
             while r.status_code == 429:
                 sleep_time *= 2
@@ -58,7 +59,6 @@ if __name__ == "__main__":
                 # print(json.dumps(user))
                 for paper in user["papers"]:
                     reviewer_papers.add(paper["paperId"])
-                suggest_utils.print_progress(i, 50)
             time.sleep(sleep_time / 1000.0)
     for x in reviewer_papers:
         print(x)
