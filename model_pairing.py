@@ -1,6 +1,7 @@
 import torch
 from model_utils import Batch
 
+
 def get_pairs_batch(model, g1, g1_lengths, g2, g2_lengths):
     with torch.no_grad():
 
@@ -37,7 +38,9 @@ def get_pairs_batch(model, g1, g1_lengths, g2, g2_lengths):
             p1_lengths[i] = all_g2_lengths[idx]
             g2_batch_idx = idx // model.batchsize
             g2_idx = idx % model.batchsize
-            p1[i, 0:g2_lengths[g2_batch_idx][g2_idx]] = g2[g2_batch_idx][g2_idx][0:all_g2_lengths[idx]]
+            p1[i, 0 : g2_lengths[g2_batch_idx][g2_idx]] = g2[g2_batch_idx][g2_idx][
+                0 : all_g2_lengths[idx]
+            ]
 
         if model.gpu:
             p2 = p2.cuda()
@@ -49,14 +52,15 @@ def get_pairs_batch(model, g1, g1_lengths, g2, g2_lengths):
             _, idx = torch.max(scores, 0)
             idx = idx.item()
             p2_lengths[i] = all_g1_lengths[idx]
-            p2[i, 0:g1_lengths[idx // model.batchsize][idx % model.batchsize]] = \
-                g1[idx // model.batchsize][idx % model.batchsize][0:all_g1_lengths[idx]]
+            p2[i, 0 : g1_lengths[idx // model.batchsize][idx % model.batchsize]] = g1[
+                idx // model.batchsize
+            ][idx % model.batchsize][0 : all_g1_lengths[idx]]
 
         def split(arr, lis):
             idx = 0
             output = []
             for i in lis:
-                arr2 = arr[idx:idx+i]
+                arr2 = arr[idx : idx + i]
                 output.append(arr2)
                 idx += i
             return output
@@ -69,15 +73,16 @@ def get_pairs_batch(model, g1, g1_lengths, g2, g2_lengths):
 
         _p1 = []
         for i in range(len(p1)):
-            _p1.append(p1[i][:,0:max(p1_lengths[i])])
+            _p1.append(p1[i][:, 0 : max(p1_lengths[i])])
         p1 = _p1
 
         _p2 = []
         for i in range(len(p2)):
-            _p2.append(p2[i][:,0:max(p2_lengths[i])])
+            _p2.append(p2[i][:, 0 : max(p2_lengths[i])])
         p2 = _p2
 
         return p1, p1_lengths, p2, p2_lengths
+
 
 def compute_loss_one_batch(model):
     if len(model.megabatch) == 0:
@@ -91,7 +96,9 @@ def compute_loss_one_batch(model):
             if model.increment and model.curr_megabatch_size < model.max_megabatch_size:
                 model.curr_megabatch_size += 1
                 model.increment = False
-                print("Increasing megabatch size to {0}".format(model.curr_megabatch_size))
+                print(
+                    "Increasing megabatch size to {0}".format(model.curr_megabatch_size)
+                )
 
             for i in range(model.curr_megabatch_size):
                 if model.curr_idx < len(model.mb):
@@ -111,12 +118,21 @@ def compute_loss_one_batch(model):
                     example_arr.append(example)
                     continue
 
-                example[0].populate_embeddings(model.vocab, model.zero_unk, model.ngrams, model.scramble_rate)
+                example[0].populate_embeddings(
+                    model.vocab, model.zero_unk, model.ngrams, model.scramble_rate
+                )
 
                 if not model.share_vocab:
-                    example[1].populate_embeddings(model.vocab_fr, model.zero_unk, model.ngrams, model.scramble_rate)
+                    example[1].populate_embeddings(
+                        model.vocab_fr,
+                        model.zero_unk,
+                        model.ngrams,
+                        model.scramble_rate,
+                    )
                 else:
-                    example[1].populate_embeddings(model.vocab, model.zero_unk, model.ngrams, model.scramble_rate)
+                    example[1].populate_embeddings(
+                        model.vocab, model.zero_unk, model.ngrams, model.scramble_rate
+                    )
 
                 example_arr.append(example)
             megabatch.append(example_arr)
@@ -153,8 +169,9 @@ def compute_loss_one_batch(model):
             sents1_lengths_list.append(lengths_1_torch)
             sents2_lengths_list.append(lengths_2_torch)
 
-        p1_sents_list, p1_lengths_list, p2_sents_list, p2_lengths_list, = get_pairs_batch(model, sents1_list,
-                                                sents1_lengths_list, sents2_list, sents2_lengths_list)
+        p1_sents_list, p1_lengths_list, p2_sents_list, p2_lengths_list, = get_pairs_batch(
+            model, sents1_list, sents1_lengths_list, sents2_list, sents2_lengths_list
+        )
 
         model.megabatch = []
         for i in range(len(p1_sents_list)):

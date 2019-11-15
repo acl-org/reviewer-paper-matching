@@ -5,18 +5,19 @@ from scipy.stats import pearsonr
 from model_utils import Example, unk_string
 from sacremoses import MosesTokenizer
 
+
 def get_sequences(p1, p2, model, params, fr0=0, fr1=0):
     wp1 = Example(p1)
     wp2 = Example(p2)
 
-    if fr0==1 and fr1==1 and not model.share_vocab:
+    if fr0 == 1 and fr1 == 1 and not model.share_vocab:
         wp1.populate_embeddings(model.vocab_fr, model.zero_unk, params.ngrams)
         wp2.populate_embeddings(model.vocab_fr, model.zero_unk, params.ngrams)
         if len(wp1.embeddings) == 0:
             wp1.embeddings.append(model.vocab_fr[unk_string])
         if len(wp2.embeddings) == 0:
             wp2.embeddings.append(model.vocab_fr[unk_string])
-    elif fr0==0 and fr1==1 and not model.share_vocab:
+    elif fr0 == 0 and fr1 == 1 and not model.share_vocab:
         wp1.populate_embeddings(model.vocab, model.zero_unk, params.ngrams)
         wp2.populate_embeddings(model.vocab_fr, model.zero_unk, params.ngrams)
         if len(wp1.embeddings) == 0:
@@ -33,8 +34,9 @@ def get_sequences(p1, p2, model, params, fr0=0, fr1=0):
 
     return wp1, wp2
 
+
 def get_correlation(model, f, params, tok1, tok2, fr0=0, fr1=0):
-    f = io.open(f, 'r', encoding='utf-8')
+    f = io.open(f, "r", encoding="utf-8")
     lines = f.readlines()
     preds = []
     golds = []
@@ -42,7 +44,7 @@ def get_correlation(model, f, params, tok1, tok2, fr0=0, fr1=0):
     seq2w = []
 
     ct = 0
-    for n,i in enumerate(lines):
+    for n, i in enumerate(lines):
 
         i = i.split("\t")
         if len(i) != 3 or len(i[-1].strip()) == 0:
@@ -83,11 +85,14 @@ def get_correlation(model, f, params, tok1, tok2, fr0=0, fr1=0):
 
     return pearsonr(preds, golds)[0], spearmanr(preds, golds)[0]
 
+
 def evaluate(model, params):
     assert not model.training
 
-    entok = MosesTokenizer(lang='en')
+    entok = MosesTokenizer(lang="en")
 
     f = "STS/STS17-test/STS.input.track5.en-en.txt"
-    p,s = get_correlation(model, f, params, entok, entok, fr0=0, fr1=0)
-    print("track5.en-en.txt\tpearson: {:.3f}\tspearman: {:.3f}".format(p*100, s*100))
+    p, s = get_correlation(model, f, params, entok, entok, fr0=0, fr1=0)
+    print(
+        "track5.en-en.txt\tpearson: {:.3f}\tspearman: {:.3f}".format(p * 100, s * 100)
+    )

@@ -5,6 +5,7 @@ from collections import Counter
 
 unk_string = "UUUNKKK"
 
+
 def get_ngrams(examples, share_vocab, max_len=200000, n=3):
     def update_counter(counter, sentence):
         word = " " + sentence.strip() + " "
@@ -33,7 +34,9 @@ def get_ngrams(examples, share_vocab, max_len=200000, n=3):
 
     counter = sorted(counter.items(), key=lambda x: x[1], reverse=True)[0:max_len]
     if not share_vocab:
-        counter_fr = sorted(counter_fr.items(), key=lambda x: x[1], reverse=True)[0:max_len]
+        counter_fr = sorted(counter_fr.items(), key=lambda x: x[1], reverse=True)[
+            0:max_len
+        ]
 
     vocab = {}
     for i in counter:
@@ -49,6 +52,7 @@ def get_ngrams(examples, share_vocab, max_len=200000, n=3):
     vocab_fr[unk_string] = len(vocab_fr)
 
     return vocab, vocab_fr
+
 
 def get_words(examples, share_vocab, max_len=200000):
     def update_counter(counter, sentence):
@@ -67,7 +71,9 @@ def get_words(examples, share_vocab, max_len=200000):
 
     counter = sorted(counter.items(), key=lambda x: x[1], reverse=True)[0:max_len]
     if not share_vocab:
-        counter_fr = sorted(counter_fr.items(), key=lambda x: x[1], reverse=True)[0:max_len]
+        counter_fr = sorted(counter_fr.items(), key=lambda x: x[1], reverse=True)[
+            0:max_len
+        ]
 
     vocab = {}
     for i in counter:
@@ -84,6 +90,7 @@ def get_words(examples, share_vocab, max_len=200000):
 
     return vocab, vocab_fr
 
+
 def get_minibatches_idx(n, minibatch_size, shuffle=False):
     idx_list = np.arange(n, dtype="int32")
 
@@ -93,30 +100,32 @@ def get_minibatches_idx(n, minibatch_size, shuffle=False):
     minibatches = []
     minibatch_start = 0
     for i in range(n // minibatch_size):
-        minibatches.append(idx_list[minibatch_start:
-                                    minibatch_start + minibatch_size])
+        minibatches.append(idx_list[minibatch_start : minibatch_start + minibatch_size])
         minibatch_start += minibatch_size
 
-    if (minibatch_start != n):
+    if minibatch_start != n:
         minibatches.append(idx_list[minibatch_start:])
 
     return list(zip(range(len(minibatches)), minibatches))
+
 
 def max_pool(x, lengths, gpu):
     out = torch.FloatTensor(x.size(0), x.size(2)).zero_()
     if gpu:
         out = out.cuda()
     for i in range(len(lengths)):
-        out[i] = torch.max(x[i][0:lengths[i]], 0)[0]
+        out[i] = torch.max(x[i][0 : lengths[i]], 0)[0]
     return out
+
 
 def mean_pool(x, lengths, gpu):
     out = torch.FloatTensor(x.size(0), x.size(2)).zero_()
     if gpu:
         out = out.cuda()
     for i in range(len(lengths)):
-        out[i] = torch.mean(x[i][0:lengths[i]], 0)
+        out[i] = torch.mean(x[i][0 : lengths[i]], 0)
     return out
+
 
 def lookup(words, w, zero_unk):
     w = w.lower()
@@ -128,6 +137,7 @@ def lookup(words, w, zero_unk):
         else:
             return words[unk_string]
 
+
 class Batch(object):
     def __init__(self):
         self.g1 = None
@@ -138,6 +148,7 @@ class Batch(object):
         self.p1_l = None
         self.p2 = None
         self.p2_l = None
+
 
 class Example(object):
     def __init__(self, sentence):
@@ -166,7 +177,9 @@ class Example(object):
 
     def populate_embeddings(self, words, zero_unk, ngrams, scramble_rate=0):
         if ngrams:
-            self.embeddings = self.populate_ngrams(self.sentence, words, zero_unk, ngrams)
+            self.embeddings = self.populate_ngrams(
+                self.sentence, words, zero_unk, ngrams
+            )
         else:
             arr = self.sentence.split()
             if scramble_rate:
