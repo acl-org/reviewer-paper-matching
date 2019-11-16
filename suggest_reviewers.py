@@ -197,8 +197,8 @@ if __name__ == "__main__":
 
             ret_dict = dict(query)
             ret_dict['similarPapers'] = [{'title': db[idx]['title'], 'paperAbstract': db[idx]['paperAbstract'], 'score': scores[idx]} for idx in best_idxs]
-            ret_dict['topSimReviewers'] = [{'name': reviewer_names[idx], 'ids': reviewer_data[idx]['ids'], 'score': reviewer_scores[i][idx]} for idx in best_reviewers]
-            ret_dict['assignedReviewers'] = [{'name': reviewer_names[idx], 'ids': reviewer_data[idx]['ids'], 'score': reviewer_scores[i][idx]} for idx in assigned_reviewers]
+            ret_dict['topSimReviewers'] = [{'name': reviewer_names[idx], 'ids': reviewer_data[idx]['ids'], 'score': reviewer_scores[i][idx], 'startUsername': reviewer_data[idx]['startUsername']} for idx in best_reviewers]
+            ret_dict['assignedReviewers'] = [{'name': reviewer_names[idx], 'ids': reviewer_data[idx]['ids'], 'score': reviewer_scores[i][idx], 'startUsername': reviewer_data[idx]['startUsername']} for idx in assigned_reviewers]
 
             if args.output_type == 'json':
                 print(json.dumps(ret_dict), file=outf)
