@@ -12,16 +12,15 @@ from torch.nn.utils.rnn import pack_padded_sequence as pack
 from evaluate_similarity import evaluate
 from torch import optim
 
-
 def load_model(data, load_file):
     model = torch.load(load_file)
 
-    state_dict = model["state_dict"]
-    model_args = model["args"]
-    vocab = model["vocab"]
-    vocab_fr = model["vocab_fr"]
-    optimizer = model["optimizer"]
-    epoch = model["epoch"]
+    state_dict = model['state_dict']
+    model_args = model['args']
+    vocab = model['vocab']
+    vocab_fr = model['vocab_fr']
+    optimizer = model['optimizer']
+    epoch = model['epoch']
 
     if model_args.model == "avg":
         model = Averaging(data, model_args, vocab, vocab_fr)
@@ -32,7 +31,6 @@ def load_model(data, load_file):
     model.optimizer.load_state_dict(optimizer)
 
     return model, epoch
-
 
 class ParaModel(nn.Module):
     def __init__(self, data, args, vocab, vocab_fr):
@@ -75,17 +73,12 @@ class ParaModel(nn.Module):
             self.sp.Load(args.sp_model)
 
     def save_params(self, epoch):
-        torch.save(
-            {
-                "state_dict": self.state_dict(),
-                "vocab": self.vocab,
-                "vocab_fr": self.vocab_fr,
-                "args": self.args,
-                "optimizer": self.optimizer.state_dict(),
-                "epoch": epoch,
-            },
-            "{0}_{1}.pt".format(self.args.outfile, epoch),
-        )
+        torch.save({'state_dict': self.state_dict(),
+                'vocab': self.vocab,
+                'vocab_fr': self.vocab_fr,
+                'args': self.args,
+                'optimizer': self.optimizer.state_dict(),
+                'epoch': epoch}, "{0}_{1}.pt".format(self.args.outfile, epoch))
 
     def torchify_batch(self, batch):
         max_len = 0
@@ -95,22 +88,20 @@ class ParaModel(nn.Module):
 
         batch_len = len(batch)
 
-        np_sents = np.zeros((batch_len, max_len), dtype="int32")
-        np_lens = np.zeros((batch_len,), dtype="int32")
+        np_sents = np.zeros((batch_len, max_len), dtype='int32')
+        np_lens = np.zeros((batch_len,), dtype='int32')
 
         for i, ex in enumerate(batch):
-            np_sents[i, : len(ex.embeddings)] = ex.embeddings
+            np_sents[i, :len(ex.embeddings)] = ex.embeddings
             np_lens[i] = len(ex.embeddings)
 
-        idxs, lengths = (
-            torch.from_numpy(np_sents).long(),
-            torch.from_numpy(np_lens).float().long(),
-        )
+        idxs, lengths = torch.from_numpy(np_sents).long(), \
+                               torch.from_numpy(np_lens).float().long()
 
         if self.gpu:
             idxs = idxs.cuda()
             lengths = lengths.cuda()
-
+    
         return idxs, lengths
 
     def loss_function(self, g1, g2, p1, p2):
@@ -143,17 +134,15 @@ class ParaModel(nn.Module):
         self.train()
 
         try:
-            for ep in range(start_epoch, self.args.epochs + 1):
-                self.mb = model_utils.get_minibatches_idx(
-                    len(self.data), self.args.batchsize, shuffle=True
-                )
+            for ep in range(start_epoch, self.args.epochs+1):
+                self.mb = model_utils.get_minibatches_idx(len(self.data), self.args.batchsize, shuffle=True)
                 self.curr_idx = 0
                 self.ep_loss = 0
                 self.megabatch = []
                 cost = 0
                 counter = 0
 
-                while cost is not None:
+                while(cost is not None):
                     cost = model_pairing.compute_loss_one_batch(self)
                     if cost is None:
                         continue
@@ -173,14 +162,13 @@ class ParaModel(nn.Module):
                 if self.args.save_every_epoch:
                     self.save_params(ep)
 
-                print("Epoch {0}\tCost: ".format(ep), self.ep_loss / counter)
+                print('Epoch {0}\tCost: '.format(ep), self.ep_loss / counter)
 
         except KeyboardInterrupt:
             print("Training Interrupted")
 
         end_time = time.time()
         print("Total Time:", (end_time - start_time))
-
 
 class Averaging(ParaModel):
     def __init__(self, data, args, vocab, vocab_fr):
@@ -189,10 +177,10 @@ class Averaging(ParaModel):
         self.optimizer = optim.Adam(self.parameters, lr=self.args.lr)
 
         if args.gpu:
-            self.cuda()
+           self.cuda()
 
         print(self)
-
+        
     def forward(self, curr_batch):
         g_idxs1 = curr_batch.g1
         g_lengths1 = curr_batch.g1_l
@@ -229,7 +217,6 @@ class Averaging(ParaModel):
 
         return word_embs
 
-
 class LSTM(ParaModel):
     def __init__(self, data, args, vocab, vocab_fr):
         super(LSTM, self).__init__(data, args, vocab, vocab_fr)
@@ -243,30 +230,17 @@ class LSTM(ParaModel):
             self.e_hidden_init = self.e_hidden_init.cuda()
             self.e_cell_init = self.e_cell_init.cuda()
 
-        self.lstm = nn.LSTM(
-            self.args.dim,
-            self.hidden_dim,
-            num_layers=1,
-            bidirectional=True,
-            batch_first=True,
-        )
+        self.lstm = nn.LSTM(self.args.dim, self.hidden_dim, num_layers=1, bidirectional=True, batch_first=True)
 
         if not self.share_encoder:
-            self.lstm_fr = nn.LSTM(
-                self.args.dim,
-                self.hidden_dim,
-                num_layers=1,
-                bidirectional=True,
-                batch_first=True,
-            )
+            self.lstm_fr = nn.LSTM(self.args.dim, self.hidden_dim, num_layers=1,
+                                       bidirectional=True, batch_first=True)
 
         self.parameters = self.parameters()
-        self.optimizer = optim.Adam(
-            filter(lambda p: p.requires_grad, self.parameters), self.args.lr
-        )
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters), self.args.lr)
 
         if self.gpu:
-            self.cuda()
+           self.cuda()
 
         print(self)
 
@@ -284,17 +258,13 @@ class LSTM(ParaModel):
         if fr and not self.share_encoder:
             if self.dropout > 0:
                 F.dropout(in_embs, training=self.training)
-            all_hids, (enc_last_hid, _) = self.lstm_fr(
-                pack(in_embs[indices], lens.tolist(), batch_first=True),
-                (e_hidden_init, e_cell_init),
-            )
+            all_hids, (enc_last_hid, _) = self.lstm_fr(pack(in_embs[indices],
+                                                        lens.tolist(), batch_first=True), (e_hidden_init, e_cell_init))
         else:
             if self.dropout > 0:
                 F.dropout(in_embs, training=self.training)
-            all_hids, (enc_last_hid, _) = self.lstm(
-                pack(in_embs[indices], lens.tolist(), batch_first=True),
-                (e_hidden_init, e_cell_init),
-            )
+            all_hids, (enc_last_hid, _) = self.lstm(pack(in_embs[indices],
+                                                         lens.tolist(), batch_first=True), (e_hidden_init, e_cell_init))
 
         _, _indices = torch.sort(indices, 0)
         all_hids = unpack(all_hids, batch_first=True)[0][_indices]

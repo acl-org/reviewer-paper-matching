@@ -42,7 +42,7 @@ if __name__ == "__main__":
     sleep_time = 1
     with requests.Session() as session:
         session.verify = False  # Not verifying SSL cert speeds things up.
-        for i, rid in tqdm(enumerate(reviewer_ids)):
+        for i, rid in tqdm(enumerate(reviewer_ids), total=rev_len):
             r = session.get(f"http://api.semanticscholar.org/v1/author/{rid}")
             while r.status_code == 429:
                 sleep_time *= 2
@@ -60,5 +60,6 @@ if __name__ == "__main__":
                 for paper in user["papers"]:
                     reviewer_papers.add(paper["paperId"])
             time.sleep(sleep_time / 1000.0)
+
     for x in reviewer_papers:
         print(x)
