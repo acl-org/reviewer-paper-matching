@@ -4,7 +4,7 @@ This is an initial pass at code to match reviewers for the [ACL Conferences](htt
 It is based on paper matching between abstracts of submitted papers and a database of papers from
 [Semantic Scholar](https://www.semanticscholar.org).
 
-## Installing
+## Installing and Training Model (before review process)
 
 **Step 1:** install requirements:
 
@@ -35,24 +35,43 @@ you may contact the authors to get a model distributed to you.
                                   --model avg --dim 300--epochs 10 --ngrams 3 --share-vocab 1 --dropout 0.3 \
                                   --outfile scratch/similarity-model.pt 2>&1 | tee scratch/training.log
 
-**Step 7:** In the scratch directory, create two files of paper abstracts `scratch/abstracts.txt` and reviewer names
-`scratch/reviewers.txt` for the current conference.
+## Creating Assignments (during review process)
 
-**Step 8:** Create and save the reviewer assignments:
+**Step 1:** In START, go to the "Spreadsheet Maker" and download CSV spreadsheets for "Submissions"
+and "Author/Reviewer Profiles" saving them to `scratch/Submission_Information.csv` and
+`scratch/Profile_Information.csv`.
+
+**Step 2:** Process these files into the jsonl or npy format used by this software:
+
+    python softconf_extract.py \
+        --profile_in=scratch/Profile_Information.csv \
+        --submission_in=scratch/Submission_Information.csv \
+        --reviewer_out=scratch/reviewers.jsonl \
+        --submission_out=scratch/submissions.jsonl \
+        --bid_out=scratch/cois.npy
+
+**Step 3:** Create and save the reviewer assignments:
 
     python suggest_reviewers.py \
-        --submission_file=scratch/abstracts.txt \
+        --submission_file=scratch/submissions.jsonl \
         --db_file=scratch/acl-anthology.json \
-        --reviewer_file=scratch/reviewers.txt \
+        --reviewer_file=scratch/reviewers.jsonl \
         --model_file=scratch/similarity-model.pt \
         --max_papers_per_reviewer=5 \
         --reviews_per_paper=3 \
-        --output_type=json \
         | tee scratch/assignments.json
 
 You will then have assignments written to both the terminal and `scratch/assignments.json`. You can modify
 `reviews_per_paper` and `max_papers_per_reviewer` to change the number of reviews assigned to each paper and max number
-of reviews per reviewer. You can also output in an easier-to-read text format with `--output_type=text`.
+of reviews per reviewer. After you've output the suggestions, you can also print them (and save them to a file
+`scratch/assignments.txt`) in an easier-to-read format by running:
+
+    python suggest_to_text.py < scratch/assignments.json \ tee scratch/assignments.txt
+    
+**Step 4:** If you want to turn these into START format to re-enter them into START, you can run the following
+command:
+
+    TODO
 
 ## Method Description
 

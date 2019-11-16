@@ -139,6 +139,10 @@ if __name__ == "__main__":
         submission_abs = [x['paperAbstract'] for x in submissions]
     with open(args.reviewer_file, "r") as f:
         reviewer_data = [json.loads(x) for x in f]
+        for data in reviewer_data:
+            if 'name' in data:
+                data['names'] = [data['name']]
+                del data['name']
         reviewer_names = [x['names'][0] for x in reviewer_data]
     with open(args.db_file, "r") as f:
         db = [json.loads(x) for x in f]  # for debug
@@ -193,8 +197,8 @@ if __name__ == "__main__":
 
             ret_dict = dict(query)
             ret_dict['similarPapers'] = [{'title': db[idx]['title'], 'paperAbstract': db[idx]['paperAbstract'], 'score': scores[idx]} for idx in best_idxs]
-            ret_dict['topSimReviewers'] = [{'name': reviewer_names[idx], 'ids': reviewer_data[idx][1], 'score': reviewer_scores[i][idx]} for idx in best_reviewers]
-            ret_dict['assignedReviewers'] = [{'name': reviewer_names[idx], 'ids': reviewer_data[idx][1], 'score': reviewer_scores[i][idx]} for idx in assigned_reviewers]
+            ret_dict['topSimReviewers'] = [{'name': reviewer_names[idx], 'ids': reviewer_data[idx]['ids'], 'score': reviewer_scores[i][idx]} for idx in best_reviewers]
+            ret_dict['assignedReviewers'] = [{'name': reviewer_names[idx], 'ids': reviewer_data[idx]['ids'], 'score': reviewer_scores[i][idx]} for idx in assigned_reviewers]
 
             if args.output_type == 'json':
                 print(json.dumps(ret_dict), file=outf)

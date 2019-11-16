@@ -38,7 +38,7 @@ def calc_reviewer_db_mapping(reviewers, db, author_col='name', author_field='aut
                 mapping[i,j] = 1
     num_papers = mapping.sum(axis=0)
     for name, num in zip(reviewers, num_papers):
-        name = name[0][0]
+        name = name['names'][0]
         if num < warn_under:
             print(f'WARNING: Reviewer {name} has {num} papers in the database', file=sys.stderr)
     return mapping
