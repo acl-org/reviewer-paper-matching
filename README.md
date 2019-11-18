@@ -66,12 +66,12 @@ You will then have assignments written to both the terminal and `scratch/assignm
 of reviews per reviewer. After you've output the suggestions, you can also print them (and save them to a file
 `scratch/assignments.txt`) in an easier-to-read format by running:
 
-    python suggest_to_text.py < scratch/assignments.json \ tee scratch/assignments.txt
+    python suggest_to_text.py < scratch/assignments.json | tee scratch/assignments.txt
     
 **Step 4:** If you want to turn these into START format to re-enter them into START, you can run the following
 command:
 
-    TODO
+    python softconf_package.py < scratch/assignments.json > scratch/start-assignments.csv
 
 ## Method Description
 
