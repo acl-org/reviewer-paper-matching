@@ -11,6 +11,7 @@ from torch.nn.utils.rnn import pad_packed_sequence as unpack
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from evaluate_similarity import evaluate
 from torch import optim
+import os
 
 def load_model(data, load_file):
     model = torch.load(load_file)
@@ -79,6 +80,7 @@ class ParaModel(nn.Module):
                 'args': self.args,
                 'optimizer': self.optimizer.state_dict(),
                 'epoch': epoch}, "{0}_{1}.pt".format(self.args.outfile, epoch))
+        return "{0}_{1}.pt".format(self.args.outfile, epoch)
 
     def torchify_batch(self, batch):
         max_len = 0
@@ -130,6 +132,17 @@ class ParaModel(nn.Module):
 
         self.eval()
         evaluate(self, self.args)
+        model_file = self.save_params(0)
+
+        # evaluate reviewers
+        os.system("python -u suggest_reviewers.py --submission_file=data/emnlp2019-curated.json "
+                  "--db_file=scratch/acl-anthology.json --reviewer_file=data/acl2020-area-chair-nameids.json "
+                  "--model_file={0} --max_papers_per_reviewer=10 \
+                  --min_papers_per_reviewer=3 --output_type=json --suggestion_file=output/{0}_suggest.json "
+                  "--bid_file=data/aclrev-emnlppap.npy --aggregator=weighted_top3 &> output/{0}_suggest.log".format(model_file))
+        os.system("python -u evaluate_suggestions.py --suggestion_file output/{0}_suggest.json "
+                  "--reviewer_file=data/acl2020-area-chair-nameids.json --bid_file data/aclrev-emnlppap.npy "
+                  "2>&1 | tee output/{0}_eval.log".format(model_file))
 
         self.train()
 
@@ -149,6 +162,7 @@ class ParaModel(nn.Module):
 
                     self.ep_loss += cost.item()
                     counter += 1
+                    print(counter/float(len(self.mb)))
 
                     self.optimizer.zero_grad()
                     cost.backward()
@@ -159,8 +173,18 @@ class ParaModel(nn.Module):
                 evaluate(self, self.args)
                 self.train()
 
-                if self.args.save_every_epoch:
-                    self.save_params(ep)
+                #if self.args.save_every_epoch:
+                model_file = self.save_params(ep)
+
+                #evaluate reviewers
+                os.system("python -u suggest_reviewers.py --submission_file=data/emnlp2019-curated.json "
+                          "--db_file=scratch/acl-anthology.json --reviewer_file=data/acl2020-area-chair-nameids.json "
+                          "--model_file={0} --max_papers_per_reviewer=10 \
+                          --min_papers_per_reviewer=3 --output_type=json --suggestion_file=output/{0}_suggest.json "
+                          "--bid_file=data/aclrev-emnlppap.npy --aggregator=weighted_top3 &> output/{0}_suggest.log".format(model_file))
+                os.system("python -u evaluate_suggestions.py --suggestion_file output/{0}_suggest.json "
+                          "--reviewer_file=data/acl2020-area-chair-nameids.json --bid_file data/aclrev-emnlppap.npy "
+                          "".format(model_file))
 
                 print('Epoch {0}\tCost: '.format(ep), self.ep_loss / counter)
 
