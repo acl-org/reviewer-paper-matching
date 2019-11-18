@@ -1,0 +1,3 @@
+python -u train_similarity.py --data-file scratch/acl-anthology-training.tsv --model avg --dim 300 --epochs 10 --ngrams 3 --share-vocab 1 --dropout 0.3 --outfile scratch/similarity-model.pt 2>&1 | tee scratch/training.log
+python -u suggest_reviewers.py --submission_file=data/emnlp2019-curated.json --db_file=scratch/acl-anthology.json --reviewer_file=data/acl2020-area-chairs.txt --model_file=scratch/similarity-model.pt_$f.pt --max_papers_per_reviewer=8 --output_type=json --suggestion_file=output/suggest-$f.json --bid_file=data/aclrev-emnlppap.npy &> output/suggest-$f.log
+python -u evaluate_suggestions.py --suggestion_file output/suggest-$f.json --reviewer_file=data/acl2020-area-chairs.txt --bid_file data/aclrev-emnlppap.npy &> output/eval-$f.log
