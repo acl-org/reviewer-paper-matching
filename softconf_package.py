@@ -14,5 +14,5 @@ if __name__ == "__main__":
         submissions = [json.loads(x) for x in f]
 
     for submission in submissions:
-        sid = submission['startUsername']
-        print(f'{sid}:'+';'.join([x['startUsername'] for x in submission['authors']]))
+        sid = submission['startSubmissionId']
+        print(f'{sid}:'+';'.join([x['startUsername'] for x in submission['assignedReviewers']]))

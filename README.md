@@ -4,7 +4,9 @@ This is an initial pass at code to match reviewers for the [ACL Conferences](htt
 It is based on paper matching between abstracts of submitted papers and a database of papers from
 [Semantic Scholar](https://www.semanticscholar.org).
 
-## Installing and Training Model (before review process)
+## Usage Instructions
+
+### Installing and Training Model (before review process)
 
 **Step 1:** install requirements:
 
@@ -35,7 +37,7 @@ you may contact the authors to get a model distributed to you.
                                   --model avg --dim 300--epochs 10 --ngrams 3 --share-vocab 1 --dropout 0.3 \
                                   --outfile scratch/similarity-model.pt 2>&1 | tee scratch/training.log
 
-## Creating Assignments (during review process)
+### Creating Assignments (during review process)
 
 **Step 1:** In START, go to the "Spreadsheet Maker" and download CSV spreadsheets for "Submissions"
 and "Author/Reviewer Profiles" saving them to `scratch/Submission_Information.csv` and
@@ -59,19 +61,54 @@ and "Author/Reviewer Profiles" saving them to `scratch/Submission_Information.cs
         --model_file=scratch/similarity-model.pt \
         --max_papers_per_reviewer=5 \
         --reviews_per_paper=3 \
-        | tee scratch/assignments.json
+        | tee scratch/assignments.jsonl
 
-You will then have assignments written to both the terminal and `scratch/assignments.json`. You can modify
+You will then have assignments written to both the terminal and `scratch/assignments.jsonl`. You can modify
 `reviews_per_paper` and `max_papers_per_reviewer` to change the number of reviews assigned to each paper and max number
 of reviews per reviewer. After you've output the suggestions, you can also print them (and save them to a file
 `scratch/assignments.txt`) in an easier-to-read format by running:
 
-    python suggest_to_text.py < scratch/assignments.json | tee scratch/assignments.txt
+    python suggest_to_text.py < scratch/assignments.jsonl | tee scratch/assignments.txt
     
 **Step 4:** If you want to turn these into START format to re-enter them into START, you can run the following
 command:
 
-    python softconf_package.py < scratch/assignments.json > scratch/start-assignments.csv
+    python softconf_package.py < scratch/assignments.jsonl > scratch/start-assignments.csv
+    
+then import `scratch/start-assignments.csv` into start using the data import interface.
+
+### Evaluating Assignments (to test the model)
+
+**Step 1:** In order to evaluate the system, you will need either (a) a conference with gold-standard bids, or (b)
+some other way to create information about bids automatically.
+
+**Step 1a:** If you have gold-standard bids, in START, go to the "Spreadsheet Maker" and download CSV spreadsheets for
+"Submissions," "Author/Reviewer Profiles," and "Bids" saving them to `scratch/Submission_Information.csv` and
+`scratch/Profile_Information.csv`, and `scratch/Bid_Information.csv`. Then run the following:
+
+    python softconf_extract.py \
+        --profile_in=scratch/Profile_Information.csv \
+        --submission_in=scratch/Submission_Information.csv \
+        --bids_in=scratch/Bid_Information.csv \
+        --reviewer_out=scratch/reviewers.jsonl \
+        --submission_out=scratch/submissions.jsonl \
+        --bid_out=scratch/bids.npy
+        
+**Step 1b:** If you do not have this information from START, do the same as above but without `--bids_in`. Then you
+will have to create a numpy array `bids.npy` where rows correspond to submissions, and columns correspond to the bids
+of potential reviewers (0=COI, 1=no, 2=maybe, 3=yes).
+
+**Step 2:** Follow the steps in the previous section on reviewer assignment to generate `assignments.jsonl`.
+
+**Step 3:** Evaluate the assignments using the following command:
+
+        python evaluate_suggestions.py \
+            --suggestion_file=scratch/assignments.jsonl \
+            --reviewer_file=scratch/reviewers.jsonl \
+            --bid_file=scratch/bids.npy
+
+This will tell you the ratio of assignments that were made to each bid, where in general a higher ratio of "3"s is
+better.
 
 ## Method Description
 
