@@ -27,13 +27,15 @@ def calc_reviewer_db_mapping(reviewers, db, author_col='name', author_field='aut
     mapping = np.zeros( (len(db), len(reviewers)) )
     for i, entry in enumerate(db):
         for cols in entry[author_field]:
-            if author_col == 'id':
+            js = []
+            if author_col in cols:
+                if cols[author_col] in reviewer_id_map:
+                    js = reviewer_id_map[cols[author_col]]
+            else:
                 js = []
-                for x in cols['ids']:
+                for x in cols[author_col+'s']:
                     if x in reviewer_id_map:
                         js.extend(reviewer_id_map[x])
-            else:
-                js = reviewer_id_map.get(cols[author_col], [])
             for j in js:
                 mapping[i,j] = 1
     num_papers = mapping.sum(axis=0)
