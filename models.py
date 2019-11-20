@@ -135,14 +135,14 @@ class ParaModel(nn.Module):
         model_file = self.save_params(0)
 
         # evaluate reviewers
-        os.system("python -u suggest_reviewers.py --submission_file=data/emnlp2019-curated.json "
-                  "--db_file=scratch/acl-anthology.json --reviewer_file=data/acl2020-area-chair-nameids.json "
-                  "--model_file={0} --max_papers_per_reviewer=10 \
-                  --min_papers_per_reviewer=3 --output_type=json --suggestion_file=output/{0}_suggest.json "
-                  "--bid_file=data/aclrev-emnlppap.npy --aggregator=weighted_top3 &> output/{0}_suggest.log".format(model_file))
-        os.system("python -u evaluate_suggestions.py --suggestion_file output/{0}_suggest.json "
-                  "--reviewer_file=data/acl2020-area-chair-nameids.json --bid_file data/aclrev-emnlppap.npy "
-                  "2>&1 | tee output/{0}_eval.log".format(model_file))
+        #os.system("python -u suggest_reviewers.py --submission_file=data/emnlp2019-curated.json "
+        #          "--db_file=scratch/acl-anthology.json --reviewer_file=data/acl2020-area-chair-nameids.json "
+        #          "--model_file={0} --max_papers_per_reviewer=10 \
+        #          --min_papers_per_reviewer=3 --output_type=json --suggestion_file=output/{0}_suggest.json "
+        #          "--bid_file=data/aclrev-emnlppap.npy --aggregator=weighted_top3 &> output/{0}_suggest.log".format(model_file))
+        #os.system("python -u evaluate_suggestions.py --suggestion_file output/{0}_suggest.json "
+        #          "--reviewer_file=data/acl2020-area-chair-nameids.json --bid_file data/aclrev-emnlppap.npy "
+        #          "2>&1 | tee output/{0}_eval.log".format(model_file))
 
         self.train()
 
@@ -176,13 +176,14 @@ class ParaModel(nn.Module):
                 #if self.args.save_every_epoch:
                 model_file = self.save_params(ep)
 
+                if ep % 5 == 0 and ep > 0:
                 #evaluate reviewers
-                os.system("python -u suggest_reviewers.py --submission_file=data/emnlp2019-curated.json "
+                    os.system("python -u suggest_reviewers.py --submission_file=data/emnlp2019-curated.json "
                           "--db_file=scratch/acl-anthology.json --reviewer_file=data/acl2020-area-chair-nameids.json "
                           "--model_file={0} --max_papers_per_reviewer=10 \
                           --min_papers_per_reviewer=3 --output_type=json --suggestion_file=output/{0}_suggest.json "
                           "--bid_file=data/aclrev-emnlppap.npy --aggregator=weighted_top3 &> output/{0}_suggest.log".format(model_file))
-                os.system("python -u evaluate_suggestions.py --suggestion_file output/{0}_suggest.json "
+                    os.system("python -u evaluate_suggestions.py --suggestion_file output/{0}_suggest.json "
                           "--reviewer_file=data/acl2020-area-chair-nameids.json --bid_file data/aclrev-emnlppap.npy "
                           "".format(model_file))
 
