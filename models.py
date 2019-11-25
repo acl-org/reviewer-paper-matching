@@ -78,8 +78,17 @@ class ParaModel(nn.Module):
                 'vocab_fr': self.vocab_fr,
                 'args': self.args,
                 'optimizer': self.optimizer.state_dict(),
-                'epoch': epoch}, "{0}_{1}.pt".format(self.args.outfile, epoch))
+                'epoch': epoch}, "{0}_{1}".format(self.args.outfile, epoch))
 
+    def save_final_params(self):
+        print("Saving final model...")
+        torch.save({'state_dict': self.state_dict(),
+                'vocab': self.vocab,
+                'vocab_fr': self.vocab_fr,
+                'args': self.args,
+                'optimizer': self.optimizer.state_dict(),
+                'epoch': self.args.epochs}, "{0}".format(self.args.outfile)) #.pt is in input string
+                
     def torchify_batch(self, batch):
         max_len = 0
         for i in batch:
@@ -163,6 +172,8 @@ class ParaModel(nn.Module):
                     self.save_params(ep)
 
                 print('Epoch {0}\tCost: '.format(ep), self.ep_loss / counter)
+        
+            self.save_final_params()
 
         except KeyboardInterrupt:
             print("Training Interrupted")
