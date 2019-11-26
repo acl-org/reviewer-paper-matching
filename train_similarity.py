@@ -23,12 +23,11 @@ def get_data(params):
             else:
                 finished.add(i)
 
-            i = i.split('\t')
-            if len(i[0].strip()) == 0 or len(i[1].strip()) == 0:
+            i = i.strip()
+            if len(i) == 0:
                 continue
 
-            e = (Example(i[0]), Example(i[1]))
-            examples.append(e)
+            examples.append(Example(i.lower()))
 
     return examples
 
@@ -56,8 +55,8 @@ parser.add_argument("--delta", default=0.4, type=float, help="margin")
 parser.add_argument("--ngrams", default=0, type=int, help="whether to use character n-grams")
 parser.add_argument("--share-encoder", default=1, type=int, help="whether to share the encoder (LSTM only)")
 parser.add_argument("--share-vocab", default=1, type=int, help="whether to share the embeddings")
-parser.add_argument("--scramble-rate", default=0, type=float, help="rate of scrambling")
 parser.add_argument("--sp-model", help="SP model to load for evaluation")
+parser.add_argument("--seg-length", type=int, help="Length of segments when splitting abstracts.")
 
 args = parser.parse_args()
 
