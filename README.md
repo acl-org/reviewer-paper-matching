@@ -33,7 +33,7 @@ you may contact the authors to get a model distributed to you.
     python tokenize_abstracts.py > scratch/abstracts.txt # tokenize
     python sentencepiece_abstracts.py # train sentencepiece models
     python -u train_similarity.py --data-file scratch/abstracts.20k.sp.txt \
-                                  --model avg --dim 1024 --epochs 30 --ngrams 0 --share-vocab 1 --dropout 0.3 \
+                                  --model avg --dim 1024 --epochs 20 --ngrams 0 --share-vocab 1 --dropout 0.3 \
                                   --outfile scratch/similarity-model.pt --batchsize 64 --megabatch-size 1 \
                                   --megabatch-anneal 10 --seg-length 1 \
                                   --sp-model scratch/abstracts.sp.20k.model 2>&1 | tee scratch/training.log

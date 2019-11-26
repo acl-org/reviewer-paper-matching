@@ -183,7 +183,7 @@ class ParaModel(nn.Module):
                 cost = 0
 
                 pbar = tqdm(total=len(self.mb))
-                
+
                 while(cost is not None):
                     cost = model_pairing.compute_loss_one_batch(self)
                     if cost is None:
