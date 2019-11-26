@@ -6,12 +6,15 @@ import torch.nn.functional as F
 import sentencepiece as spm
 import model_pairing
 import model_utils
+import random
 from torch.nn.modules.distance import CosineSimilarity
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from evaluate_similarity import evaluate
 from torch import optim
 import os
+from model_utils import Example
+from tqdm import tqdm
 
 def load_model(data, load_file):
     model = torch.load(load_file)
@@ -37,13 +40,14 @@ class ParaModel(nn.Module):
     def __init__(self, data, args, vocab, vocab_fr):
         super(ParaModel, self).__init__()
 
-        self.data = data
+        self.raw_data = data
         self.args = args
         self.gpu = args.gpu
 
         self.vocab = vocab
         self.vocab_fr = vocab_fr
         self.ngrams = args.ngrams
+        self.seg_length = args.seg_length
 
         self.delta = args.delta
         self.pool = args.pool
@@ -51,7 +55,6 @@ class ParaModel(nn.Module):
         self.dropout = args.dropout
         self.share_encoder = args.share_encoder
         self.share_vocab = args.share_vocab
-        self.scramble_rate = args.scramble_rate
         self.zero_unk = args.zero_unk
 
         self.batchsize = args.batchsize
@@ -124,6 +127,30 @@ class ParaModel(nn.Module):
         g2 = self.encode(g_idxs2, g_lengths2, fr=fr1)
         return self.cosine(g1, g2)
 
+    def pair_up_data(self):
+        idx = random.randint(0, self.seg_length)
+        pairs = []
+        for i in self.raw_data:
+            sent = i.sentence
+            sent = sent.split()
+            idx = min(idx, len(sent)-2)
+            splits = []
+            start = 0
+            while idx < len(sent):
+                seg1 = sent[start:idx]
+                splits.append(seg1)
+                start = idx
+                idx += self.seg_length
+                idx = min(idx, len(sent))
+            if idx > len(sent):
+                seg = sent[start:len(sent)]
+                splits.append(seg)
+            splits = [" ".join(i) for i in splits]
+            random.shuffle(splits)
+            mid = len(splits) // 2
+            pairs.append((Example(splits[0:mid]), Example(splits[mid:])))
+        return pairs
+
     def train_epochs(self, start_epoch=1):
         start_time = time.time()
         self.megabatch = []
@@ -132,9 +159,9 @@ class ParaModel(nn.Module):
 
         self.eval()
         evaluate(self, self.args)
-        model_file = self.save_params(0)
 
         # evaluate reviewers
+        # model_file = self.save_params(0)
         #os.system("python -u suggest_reviewers.py --submission_file=data/emnlp2019-curated.json "
         #          "--db_file=scratch/acl-anthology.json --reviewer_file=data/acl2020-area-chair-nameids.json "
         #          "--model_file={0} --max_papers_per_reviewer=10 \
@@ -148,21 +175,22 @@ class ParaModel(nn.Module):
 
         try:
             for ep in range(start_epoch, self.args.epochs+1):
+                self.data = self.pair_up_data()
                 self.mb = model_utils.get_minibatches_idx(len(self.data), self.args.batchsize, shuffle=True)
                 self.curr_idx = 0
                 self.ep_loss = 0
                 self.megabatch = []
                 cost = 0
-                counter = 0
 
+                pbar = tqdm(total=len(self.mb))
+                
                 while(cost is not None):
                     cost = model_pairing.compute_loss_one_batch(self)
                     if cost is None:
                         continue
 
                     self.ep_loss += cost.item()
-                    counter += 1
-                    print(counter/float(len(self.mb)))
+                    pbar.update(1)
 
                     self.optimizer.zero_grad()
                     cost.backward()
@@ -172,12 +200,13 @@ class ParaModel(nn.Module):
                 self.eval()
                 evaluate(self, self.args)
                 self.train()
+                pbar.close()
 
-                #if self.args.save_every_epoch:
-                model_file = self.save_params(ep)
+                if self.args.save_every_epoch:
+                    model_file = self.save_params(ep)
 
                 if ep % 5 == 0 and ep > 0:
-                #evaluate reviewers
+                # evaluate reviewers
                     os.system("python -u suggest_reviewers.py --submission_file=data/emnlp2019-curated.json "
                           "--db_file=scratch/acl-anthology.json --reviewer_file=data/acl2020-area-chair-nameids.json "
                           "--model_file={0} --max_papers_per_reviewer=10 \
