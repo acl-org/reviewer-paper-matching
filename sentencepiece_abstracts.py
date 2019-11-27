@@ -1,10 +1,21 @@
+import argparse
 import sentencepiece as spm
 
-spm.SentencePieceTrainer.Train('--input=scratch/abstracts.txt --model_prefix=scratch/abstracts.sp.20k --vocab_size=20000 --character_coverage=0.9995 --hard_vocab_limit=false')
-sp = spm.SentencePieceProcessor()
-sp.Load('scratch/abstracts.sp.20k.model')
+parser = argparse.ArgumentParser()
 
-f = open('scratch/abstracts.txt', 'r')
+parser.add_argument("--infile", help="name of input file (tokenized, 1 text per line)")
+parser.add_argument("--outfile", help="name of output file processed by sentencepiece")
+parser.add_argument("--model-name", help="sentencepiece model name")
+parser.add_argument("--vocab-size", help="sentencepiece vocabulary size")
+
+args = parser.parse_args()
+
+spm.SentencePieceTrainer.Train('--input={0} --model_prefix={1} --vocab_size={2} --character_coverage=0.9995 '
+                               '--hard_vocab_limit=false'.format(args.infile, args.model_name, args.vocab_size))
+sp = spm.SentencePieceProcessor()
+sp.Load(args.model_name)
+
+f = open(args.infile, 'r')
 lines = f.readlines()
 output = []
 for i in lines:
@@ -13,51 +24,8 @@ for i in lines:
     s0 = " ".join(s0)
     output.append(s0)
 
-fout = 'scratch/abstracts.20k.sp.txt'
+fout = args.outfile
 fout = open(fout, "w")
 for i in output:
     fout.write(i + "\n")
 fout.close()
-
-
-"""
-spm.SentencePieceTrainer.Train('--input=scratch/abstracts.txt --model_prefix=scratch/abstracts.sp.10k --vocab_size=10000 --character_coverage=0.9995 --hard_vocab_limit=false')
-sp = spm.SentencePieceProcessor()
-sp.Load('scratch/abstracts.sp.10k.model')
-
-f = open('scratch/abstracts.txt', 'r')
-lines = f.readlines()
-output = []
-for i in lines:
-    i = i.strip().lower()
-    s0 = sp.EncodeAsPieces(i)
-    s0 = " ".join(s0)
-    output.append(s0)
-
-fout = 'scratch/abstracts.10k.sp.txt'
-fout = open(fout, "w")
-for i in output:
-    fout.write(i + "\n")
-fout.close()
-
-
-
-spm.SentencePieceTrainer.Train('--input=scratch/abstracts.txt --model_prefix=scratch/abstracts.sp.5k --vocab_size=5000 --character_coverage=0.9995 --hard_vocab_limit=false')
-sp = spm.SentencePieceProcessor()
-sp.Load('scratch/abstracts.sp.5k.model')
-
-f = open('scratch/abstracts.txt', 'r')
-lines = f.readlines()
-output = []
-for i in lines:
-    i = i.strip().lower()
-    s0 = sp.EncodeAsPieces(i)
-    s0 = " ".join(s0)
-    output.append(s0)
-
-fout = 'scratch/abstracts.5k.sp.txt'
-fout = open(fout, "w")
-for i in output:
-    fout.write(i + "\n")
-fout.close()
-"""

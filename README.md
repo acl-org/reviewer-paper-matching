@@ -32,8 +32,9 @@ aclweb.org, a rough approximation of the papers in the ACL Anthology.
 you may contact the authors to get a model distributed to you.
 
     bash download_sts17.sh
-    python tokenize_abstracts.py > scratch/abstracts.txt # tokenize
-    python sentencepiece_abstracts.py # train sentencepiece models
+    python tokenize_abstracts.py --infile scratch/acl-anthology.json --outfile scratch/abstracts.txt
+    python sentencepiece_abstracts.py --infile scratch/abstracts.txt --vocab-size 20000 \
+                                      --model-name scratch/abstracts.sp.20k.model --outfile scratch/abstracts.20k.sp.txt 
     python -u train_similarity.py --data-file scratch/abstracts.20k.sp.txt \
                                   --model avg --dim 1024 --epochs 20 --ngrams 0 --share-vocab 1 --dropout 0.3 \
                                   --outfile scratch/similarity-model.pt --batchsize 64 --megabatch-size 1 \

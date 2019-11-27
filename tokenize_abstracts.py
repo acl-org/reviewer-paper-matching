@@ -1,7 +1,15 @@
 import json
+import argparse
 from sacremoses import MosesTokenizer
 
-with open('scratch/acl-anthology.json', "r") as f:
+parser = argparse.ArgumentParser()
+
+parser.add_argument("--infile", help="input json file")
+parser.add_argument("--outfile", help="output file of text, 1 per line")
+
+args = parser.parse_args()
+
+with open(args.infile, "r") as f:
     data = [json.loads(x) for x in f]
 
 entok = MosesTokenizer(lang='en')
@@ -10,12 +18,9 @@ abstracts = []
 for i in data:
     abstracts.append(i['paperAbstract'])
 
-#print(len(abstracts))
+outfile = open(args.outfile, 'w')
 for i in abstracts:
     i = i.strip()
     text = entok.tokenize(i, escape=False)
     text = " ".join(text).lower()
-    #abstracts.append(text)
-    print(text)
-    #print(len(abstracts))
-#print(len(abstracts))
+    outfile.write(text + "\n")

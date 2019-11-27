@@ -7,12 +7,12 @@ import sentencepiece as spm
 import model_pairing
 import model_utils
 import random
+import os
 from torch.nn.modules.distance import CosineSimilarity
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from evaluate_similarity import evaluate
 from torch import optim
-import os
 from model_utils import Example
 from tqdm import tqdm
 
@@ -40,13 +40,14 @@ class ParaModel(nn.Module):
     def __init__(self, data, args, vocab, vocab_fr):
         super(ParaModel, self).__init__()
 
-        self.data = data
+        self.raw_data = data
         self.args = args
         self.gpu = args.gpu
 
         self.vocab = vocab
         self.vocab_fr = vocab_fr
         self.ngrams = args.ngrams
+        self.seg_length = args.seg_length
 
         self.delta = args.delta
         self.pool = args.pool
@@ -54,7 +55,6 @@ class ParaModel(nn.Module):
         self.dropout = args.dropout
         self.share_encoder = args.share_encoder
         self.share_vocab = args.share_vocab
-        self.scramble_rate = args.scramble_rate
         self.zero_unk = args.zero_unk
 
         self.batchsize = args.batchsize
@@ -110,12 +110,12 @@ class ParaModel(nn.Module):
             np_lens[i] = len(ex.embeddings)
 
         idxs, lengths = torch.from_numpy(np_sents).long(), \
-                               torch.from_numpy(np_lens).float().long()
+                        torch.from_numpy(np_lens).float().long()
 
         if self.gpu:
             idxs = idxs.cuda()
             lengths = lengths.cuda()
-    
+
         return idxs, lengths
 
     def loss_function(self, g1, g2, p1, p2):
@@ -142,7 +142,7 @@ class ParaModel(nn.Module):
         for i in self.raw_data:
             sent = i.sentence
             sent = sent.split()
-            idx = min(idx, len(sent)-2)
+            idx = min(idx, len(sent) - 2)
             splits = []
             start = 0
             while idx < len(sent):
@@ -167,28 +167,32 @@ class ParaModel(nn.Module):
         self.curr_idx = 0
 
         self.eval()
-        evaluate(self, self.args)
-
+        print(evaluate(self, self.args))
         self.train()
+        pbar = None
 
         try:
-            for ep in range(start_epoch, self.args.epochs+1):
+            for ep in range(start_epoch, self.args.epochs + 1):
                 self.data = self.pair_up_data()
                 self.mb = model_utils.get_minibatches_idx(len(self.data), self.args.batchsize, shuffle=True)
                 self.curr_idx = 0
                 self.ep_loss = 0
                 self.megabatch = []
                 cost = 0
+                counter = 0
+                if pbar is None:
+                    pbar = tqdm(total=len(self.mb))
+                else:
+                    pbar.reset()
 
-                pbar = tqdm(total=len(self.mb))
-
-                while(cost is not None):
+                while (cost is not None):
                     cost = model_pairing.compute_loss_one_batch(self)
                     if cost is None:
                         continue
 
                     self.ep_loss += cost.item()
                     pbar.update(1)
+                    counter += 1
 
                     self.optimizer.zero_grad()
                     cost.backward()
@@ -196,31 +200,20 @@ class ParaModel(nn.Module):
                     self.optimizer.step()
 
                 self.eval()
-                evaluate(self, self.args)
+                tqdm.write(evaluate(self, self.args))
                 self.train()
-                pbar.close()
 
                 if self.args.save_every_epoch:
-                    model_file = self.save_params(ep)
+                    self.save_params(ep)
 
-                if ep % 5 == 0 and ep > 0:
-                # evaluate reviewers
-                    os.system("python -u suggest_reviewers.py --submission_file=data/emnlp2019-curated.json "
-                          "--db_file=scratch/acl-anthology.json --reviewer_file=data/acl2020-area-chair-nameids.json "
-                          "--model_file={0} --max_papers_per_reviewer=10 \
-                          --min_papers_per_reviewer=3 --output_type=json --suggestion_file=output/{0}_suggest.json "
-                          "--bid_file=data/aclrev-emnlppap.npy --aggregator=weighted_top3 &> output/{0}_suggest.log".format(model_file))
-                    os.system("python -u evaluate_suggestions.py --suggestion_file output/{0}_suggest.json "
-                          "--reviewer_file=data/acl2020-area-chair-nameids.json --bid_file data/aclrev-emnlppap.npy "
-                          "".format(model_file))
-
-                print('Epoch {0}\tCost: '.format(ep), self.ep_loss / counter)
+                tqdm.write('Epoch {0}\tCost: {1}'.format(ep, self.ep_loss / counter))
 
             self.save_final_params()
 
         except KeyboardInterrupt:
             print("Training Interrupted")
 
+        pbar.close()
         end_time = time.time()
         print("Total Time:", (end_time - start_time))
 

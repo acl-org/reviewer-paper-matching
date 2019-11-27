@@ -90,4 +90,4 @@ def evaluate(model, params):
 
     f = "STS/STS17-test/STS.input.track5.en-en.txt"
     p,s = get_correlation(model, f, params, entok, entok, fr0=0, fr1=0)
-    print("track5.en-en.txt\tpearson: {:.3f}\tspearman: {:.3f}".format(p*100, s*100))
+    return "track5.en-en.txt\tpearson: {:.3f}\tspearman: {:.3f}".format(p*100, s*100)
