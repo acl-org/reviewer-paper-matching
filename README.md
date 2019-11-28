@@ -32,10 +32,14 @@ aclweb.org, a rough approximation of the papers in the ACL Anthology.
 you may contact the authors to get a model distributed to you.
 
     bash download_sts17.sh
-    python prepare_similarity_data.py < scratch/acl-anthology.json > scratch/acl-anthology-training.tsv
-    python -u train_similarity.py --data-file scratch/acl-anthology-training.tsv \
-                                  --model avg --dim 300--epochs 10 --ngrams 3 --share-vocab 1 --dropout 0.3 \
-                                  --outfile scratch/similarity-model.pt 2>&1 | tee scratch/training.log
+    python tokenize_abstracts.py --infile scratch/acl-anthology.json --outfile scratch/abstracts.txt
+    python sentencepiece_abstracts.py --infile scratch/abstracts.txt --vocab-size 20000 \
+                                      --model-name scratch/abstracts.sp.20k.model --outfile scratch/abstracts.20k.sp.txt 
+    python -u train_similarity.py --data-file scratch/abstracts.20k.sp.txt \
+                                  --model avg --dim 1024 --epochs 20 --ngrams 0 --share-vocab 1 --dropout 0.3 \
+                                  --outfile scratch/similarity-model.pt --batchsize 64 --megabatch-size 1 \
+                                  --megabatch-anneal 10 --seg-length 1 \
+                                  --sp-model scratch/abstracts.sp.20k.model 2>&1 | tee scratch/training.log
 
 ### Creating Assignments (during review process)
 

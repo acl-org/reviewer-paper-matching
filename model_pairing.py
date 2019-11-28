@@ -111,12 +111,12 @@ def compute_loss_one_batch(model):
                     example_arr.append(example)
                     continue
 
-                example[0].populate_embeddings(model.vocab, model.zero_unk, model.ngrams, model.scramble_rate)
+                example[0].populate_embeddings(model.vocab, model.zero_unk, model.ngrams)
 
                 if not model.share_vocab:
-                    example[1].populate_embeddings(model.vocab_fr, model.zero_unk, model.ngrams, model.scramble_rate)
+                    example[1].populate_embeddings(model.vocab_fr, model.zero_unk, model.ngrams)
                 else:
-                    example[1].populate_embeddings(model.vocab, model.zero_unk, model.ngrams, model.scramble_rate)
+                    example[1].populate_embeddings(model.vocab, model.zero_unk, model.ngrams)
 
                 example_arr.append(example)
             megabatch.append(example_arr)
