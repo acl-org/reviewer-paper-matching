@@ -1,6 +1,7 @@
 import json
 import argparse
 from sacremoses import MosesTokenizer
+import suggest_utils
 
 parser = argparse.ArgumentParser()
 
@@ -19,8 +20,10 @@ for i in data:
     abstracts.append(i['paperAbstract'])
 
 outfile = open(args.outfile, 'w')
-for i in abstracts:
-    i = i.strip()
-    text = entok.tokenize(i, escape=False)
+print('Tokenizing abstracts (.=100 abstracts)')
+for i, abs in enumerate(abstracts):
+    abs = abs.strip()
+    text = entok.tokenize(abs, escape=False)
     text = " ".join(text).lower()
     outfile.write(text + "\n")
+    suggest_utils.print_progress(i, 100)

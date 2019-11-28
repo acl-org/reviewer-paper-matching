@@ -13,7 +13,7 @@ args = parser.parse_args()
 spm.SentencePieceTrainer.Train('--input={0} --model_prefix={1} --vocab_size={2} --character_coverage=0.9995 '
                                '--hard_vocab_limit=false'.format(args.infile, args.model_name, args.vocab_size))
 sp = spm.SentencePieceProcessor()
-sp.Load(args.model_name)
+sp.Load(args.model_name+'.model')
 
 f = open(args.infile, 'r')
 lines = f.readlines()
