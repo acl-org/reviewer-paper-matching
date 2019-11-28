@@ -118,6 +118,7 @@ if __name__ == "__main__":
     parser.add_argument("--reviewer_file", type=str, required=True, help="A json file of reviewer names and IDs that can review this time")
     parser.add_argument("--suggestion_file", type=str, required=True, help="An output file for the suggestions")
     parser.add_argument("--bid_file", type=str, default=None, help="A file containing numpy array of bids (0 = COI, 1 = no, 2 = maybe, 3 = yes)."+
+                                                                   " Each row corresponds to a paper (line in submission_file) and each column corresponds to a reviewer (line in reviewer_file)."
                                                                    " This will be used to remove COIs, so just '0' and '3' is fine as well.")
     parser.add_argument("--filter_field", type=str, default="name", help="Which field to use as the reviewer ID (name/id)")
     parser.add_argument("--model_file", help="filename to load the pre-trained semantic similarity file.")
