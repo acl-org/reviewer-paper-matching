@@ -59,11 +59,11 @@ def print_text_report(query, file):
     print('', file=file)
     print('\n*** Best Matched Reviewers', file=file)
     for x in query['topSimReviewers']:
-        my_name, my_score = x['name'], x['score']
+        my_name, my_score = x['names'][0], x['score']
         print(f'# {my_name} (Score {my_score})', file=file)
     print('\n*** Assigned Reviewers', file=file)
     for x in query['assignedReviewers']:
-        my_name, my_score = x['name'], x['score']
+        my_name, my_score = x['names'][0], x['score']
         print(f'# {my_name} (Score {my_score})', file=file)
     print('', file=file)
 
