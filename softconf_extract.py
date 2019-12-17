@@ -5,6 +5,7 @@ import suggest_utils
 import sys
 import numpy as np
 import re
+import pandas
 
 def find_colids(colnames, header):
     colids, colmap = [-1 for _ in colnames], {}
@@ -85,10 +86,10 @@ if __name__ == "__main__":
 
     # Get framework for bids
 #    bids = np.full( (len(csv_lines)-1, len(reviewers)), 2 ) # Initialize with "Maybes"
-    if args.bid_in:
-        raise NotImplementedError('Processing bids not implemented yet')
-    else:
-        print('Bids file missing.')
+#    if args.bid_in:
+#        bids=np.load('coibids.npy')
+#    else:
+#        print('Bids file missing.')
 
     # Write submissions
     delim_re = re.compile(r'(?:, | and )')
@@ -100,8 +101,8 @@ if __name__ == "__main__":
             for ae, an in zip(author_emails, author_names):
                 if ae in profile_map:
                     authors.append(profile_map[ae])
-                    if ae in reviewer_map:
-                        bids[i,reviewer_map[ae]] = 0
+#                    if ae in reviewer_map:
+#                        bids[i,reviewer_map[ae]] = 0
                 else:
                     print(f'WARNING: could not find account for {ae}, just using name {an}')
                     authors.append({'name': an, 'ids': []})
@@ -110,6 +111,6 @@ if __name__ == "__main__":
             submission_map[line[scol]] = i
             print(json.dumps(data), file=f)
 
-    if args.bid_out:
-        with open(args.bid_out, 'wb') as f:
-            np.save(f, bids)
+#    if args.bid_out:
+#        with open(args.bid_out, 'wb') as f:
+#            np.save(f, bids)
