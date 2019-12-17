@@ -178,7 +178,8 @@ if __name__ == "__main__":
     if cois is not None:
         num_cois = np.sum(cois)
         print(f'Applying {num_cois} COIs', file=sys.stderr)
-        reviewer_scores = np.where(cois == 0, reviewer_scores, -1e5)
+        reviewer_scores = np.where(cois == 4, reviewer_scores, -1e5)
+#        reviewer_scores = np.where(cois == 0, reviewer_scores, -1e5)
 
     # Calculate a reviewer assignment based on the constraints
     print('Calculating assignment of reviewers', file=sys.stderr)
