@@ -32,16 +32,16 @@ if __name__ == "__main__":
 
     parser.add_argument("--submission_in", type=str, default=None, help="The submission CSV file")
     parser.add_argument("--profile_in", type=str, required=True, help="The profile CSV file")
-    parser.add_argument("--bid_in", type=str, default=None, help="The submission CSV file")
-    parser.add_argument("--reviewer_out", type=str, required=True, help="The reviewer CSV file")
-    parser.add_argument("--submission_out", type=str, default=None, help="The submission CSV file")
-    parser.add_argument("--bid_out", type=str, default=None, help="The submission CSV file")
+    parser.add_argument("--bid_in", type=str, default=None, help="The submission numpy file")
+    parser.add_argument("--reviewer_out", type=str, required=True, help="The track-specific reviewer json file")
+    parser.add_argument("--submission_out", type=str, default=None, help="The track-specific submission json file")
+    parser.add_argument("--bid_out", type=str, default=None, help="The track-specific submission numpy file")
     parser.add_argument("--track_name", type=str, default=None, help="The track for assignment")
     parser.add_argument("--ac_assignment", type=bool, default=False, help="Assignment of ACs only?")
 
     args = parser.parse_args()
     
-    if not args.track:
+    if not args.track_name:
         print('There is no track chosen.  Doing assignment across all tracks.')
     elif validate_track_name(args.track_name):
         print(args.track_name, 'is not a valid track name.')
@@ -65,13 +65,13 @@ if __name__ == "__main__":
             profile_map[line[ucol]] = data
             profile_map[line[ecol]] = data
             
-            #if 'committee' in line[rcol]:
-            if line[rcole]!='Author':
-                rev_data = {'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id], 'startUsername': line[ucol], 'level':float(line[level_col])}
-                print(json.dumps(rev_data), file=f)
-                reviewer_map[line[ucol]] = len(reviewers)
-                reviewer_map[line[ecol]] = len(reviewers)
-                reviewers.append(rev_data)
+#            #if 'committee' in line[rcol]:
+#            if line[rcole]!='Author':
+#                rev_data = {'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id], 'startUsername': line[ucol], 'level':float(line[level_col])}
+#                print(json.dumps(rev_data), file=f)
+#                reviewer_map[line[ucol]] = len(reviewers)
+#                reviewer_map[line[ecol]] = len(reviewers)
+#                reviewers.append(rev_data)
 
     # Process submissions (if present)
     if not args.submission_in:
@@ -94,7 +94,7 @@ if __name__ == "__main__":
     # Write submissions
     delim_re = re.compile(r'(?:, | and )')
     with open(args.submission_out, 'w') as f:
-        for i, line in enumerate(csv_lines[1:]):
+        for i, line in enumerate(csv_lines[1:]): #order of submissions
             author_emails = line[ecol].split('; ')
             author_names = re.split(delim_re, line[acol])
             authors = []
