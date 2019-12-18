@@ -66,6 +66,7 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
     :return: Numpy matrix of length reviewers indicating the score for that reviewer
     """
     agg = np.zeros( (all_scores.shape[0], rdb.shape[1]) )
+    print('agg',agg.shape)
     print(f'Calculating aggregate scores for {all_scores.shape[0]} examples (.=10 examples)', file=sys.stderr)
     for i in range(all_scores.shape[0]):
         scores = all_scores[i]
@@ -87,7 +88,7 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
     return agg
 
 
-def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers_per_reviewer=0, max_papers_per_reviewer=5):
+def create_suggested_assignment(reviewer_scores, reviewer_levels, reviews_per_paper=3, min_papers_per_reviewer=0, max_papers_per_reviewer=5):
     num_pap, num_rev = reviewer_scores.shape
     if num_rev*max_papers_per_reviewer < num_pap*reviews_per_paper:
         raise ValueError(f'There are not enough reviewers ({num_rev}) review all the papers ({num_pap})'
@@ -104,6 +105,12 @@ def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers
     if min_papers_per_reviewer > 0:
         minrev_constraint = cp.sum(assignment, axis=0) >= min_papers_per_reviewer
         constraints.append(minrev_constraint)
+    
+    #at least one senior reviewer     
+    #senior_assignments = reviewer_is_senior * assignment
+    #senior_constraint = cp.sum(senior_assignments, axis=1) >= min_senior_reviewers_per_paper
+
+        
     total_sim = cp.sum(cp.multiply(reviewer_scores, assignment))
     assign_prob = cp.Problem(cp.Maximize(total_sim), constraints)
     assign_prob.solve(solver=cp.GLPK_MI, verbose=True)
@@ -145,6 +152,7 @@ if __name__ == "__main__":
                 data['names'] = [data['name']]
                 del data['name']
         reviewer_names = [x['names'][0] for x in reviewer_data]
+        reviewer_levels = [x['level'] for x in reviewer_data]
     with open(args.db_file, "r") as f:
         db = [json.loads(x) for x in f]  # for debug
         db_abs = [x['paperAbstract'] for x in db]
@@ -174,16 +182,21 @@ if __name__ == "__main__":
             np.save(args.save_aggregate_matrix, reviewer_scores)
 
     # Load and process COIs
-    cois = np.where(np.load(args.bid_file) == 0, 1, 0) if args.bid_file else None
+#    cois = np.where(np.load(args.bid_file) == 0, 1, 0) if args.bid_file else None
+    cois = np.load(args.bid_file)
     if cois is not None:
-        num_cois = np.sum(cois)
+        num_cois = np.sum(np.where(cois == 0, 1, 0))
         print(f'Applying {num_cois} COIs', file=sys.stderr)
-        reviewer_scores = np.where(cois == 4, reviewer_scores, -1e5)
-#        reviewer_scores = np.where(cois == 0, reviewer_scores, -1e5)
+#        reviewer_scores = np.where(cois == 4, reviewer_scores, -1e5)
+        print(len(reviewer_levels), cois)
+        reviewer_scores = np.where(cois == 2, reviewer_scores, -1e5)
+        
+        print((a,b) for a, b in zip(cois,reviewer_scores))
+        sys.exit()
 
     # Calculate a reviewer assignment based on the constraints
     print('Calculating assignment of reviewers', file=sys.stderr)
-    assignment, assignment_score = create_suggested_assignment(reviewer_scores,
+    assignment, assignment_score = create_suggested_assignment(reviewer_scores, reviewer_levels,
                                              min_papers_per_reviewer=args.min_papers_per_reviewer,
                                              max_papers_per_reviewer=args.max_papers_per_reviewer,
                                              reviews_per_paper=args.reviews_per_paper)
