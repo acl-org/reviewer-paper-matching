@@ -43,16 +43,17 @@ if __name__ == "__main__":
     parser.add_argument("--submission_out", type=str, default=None, help="The track-specific submission json file")
     parser.add_argument("--bid_out", type=str, default=None, help="The track-specific submission numpy file")
     parser.add_argument("--tracks_file", type=str, default='tracks.txt', help="The list of tracks")
-    parser.add_argument("--ac_assignment", type=bool, default=False, help="Assignment of ACs only?")
     parser.add_argument("--committee_list", type=str, help="ordered list of committee members--same order as bids columns")
-    parser.add_argument("--committee_map", type=str, help="index map committee members--same indices as bids columns")
     parser.add_argument("--track", type=str, help='current track')
 
     args = parser.parse_args()
     
     if os.path.exists(args.tracks_file):
-        with open(args.tracks_file,'r') as infile:
-            tracks=[t.strip() for t in infile.readlines()]
+        with open(args.tracks_file,'r') as tfile:
+            with open('/home/natalie/projects/acl/reviewer-coi-detection-acl2020/data/u_tracks.txt','r') as t2file:
+                tracks=[x.strip() for x in tfile.readlines()]
+                t2list=[x.strip() for x in t2file.readlines()]
+                tdict=dict(zip(t2list,tracks))
     else:
         print('No tracks file.  Exiting...')
 
@@ -86,9 +87,10 @@ if __name__ == "__main__":
             profile_map[line[ecol]] = data
             
 #            #if 'committee' in line[rcol]:
-            if args.track.replace('_',' ') in line[rcol]:
+            if tdict[args.track] in line[rcol]:
                 if 'manager' not in line[rcol]:
-                    if (args.ac_assignment and 'committee' in line[rcol]) or ((not args.ac_assignment) and 'committee' not in line[rcol]): #ac OR reviewer
+                    if True:
+                    #if (args.ac_assignment and 'committee' in line[rcol]) or ((not args.ac_assignment) and 'committee' not in line[rcol]): #ac OR reviewer
                         rev_data = {'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id], 'startUsername': line[ucol], 'level':float(line[level_col]), 'Roles':line[rcol], 'Is a track manager':line[tman]}
                         print(json.dumps(rev_data), file=f)
                         reviewer_map[line[ucol]] = len(reviewers)
@@ -108,7 +110,7 @@ if __name__ == "__main__":
 
     #load committee
     committee_list=pickle.load(open(args.committee_list,'rb'))
-    committee_map=pickle.load(open(args.committee_map,'rb'))
+    #print('committee_list', committee_list)
 
     # Write submissions
     missing=0
@@ -140,7 +142,7 @@ if __name__ == "__main__":
             num_reviewers=0
             num_acs=0
             num_sacs_managers=0
-            print(committee_list)
+            #print(committee_list)
             for j in range(len(committee_list)):
                 reviewer=committee_list[j]
 #                print(reviewer, end=' ')
@@ -151,26 +153,26 @@ if __name__ == "__main__":
                 if reviewer in reviewer_map and 'manager' in reviewers[reviewer_map[reviewer]]['Roles']: #SAC, PC chair, GC
                     bids[i,j] = 0
                     num_sacs_managers+=1
-                    print('manager', reviewer, num_sacs_managers)
-                elif reviewer in reviewer_map and args.ac_assignment: #AC assignments only
-                    if 'committee' not in reviewers[reviewer_map[reviewer]]['Roles']: 
-                        bids[i,j] = 0
-                        print(reviewers[reviewer_map[reviewer]]['Roles'])
-                        num_acs+=1
-                        print('ac',reviewer,num_acs)
-                    else:
-                        num_reviewers+=1
-                        print('reviewer',reviewer,num_reviewers)
-                elif reviewer in reviewer_map:    #reviewer assignments only
-                    if 'committee' in reviewers[reviewer_map[reviewer]]['Roles']:
-                        bids[i,j] = 0
-                        num_acs+=1
-                        print('ac',reviewer,num_acs)
-                    else:
-                        num_reviewers+=1
-                        print('reviewer',reviewer,num_reviewers)
-                        print(reviewers[reviewer_map[reviewer]]['Roles'] )
-                        print(line[trcol])
+                    #print('manager', reviewer, num_sacs_managers)
+                #elif reviewer in reviewer_map and args.ac_assignment: #AC assignments only
+                #    if 'committee' not in reviewers[reviewer_map[reviewer]]['Roles']: 
+                #        bids[i,j] = 0
+                #        print(reviewers[reviewer_map[reviewer]]['Roles'])
+                #        num_acs+=1
+                #        print('ac',reviewer,num_acs)
+                #    else:
+                #        num_reviewers+=1
+                #        print('reviewer',reviewer,num_reviewers)
+                #elif reviewer in reviewer_map:    #reviewer assignments only
+                #    if 'committee' in reviewers[reviewer_map[reviewer]]['Roles']:
+                #        bids[i,j] = 0
+                #        num_acs+=1
+                #        print('ac',reviewer,num_acs)
+                #    else:
+                #        num_reviewers+=1
+                #        print('reviewer',reviewer,num_reviewers)
+                #        print(reviewers[reviewer_map[reviewer]]['Roles'] )
+                #        print(line[trcol])
                         #for track in tracks:
                         #    if not (track in reviewer_map[reviewer]['Roles'] and track in line[trcol]):
                         #        bids[i,j] = 0 #i=submission row, j=reviewer
@@ -185,4 +187,4 @@ if __name__ == "__main__":
         with open(args.bid_out, 'wb') as f:
             np.save(f, bids)
     
-    print(bids)
+    #print(bids)

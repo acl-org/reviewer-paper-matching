@@ -5,7 +5,7 @@ import argparse
 from models import load_model
 import numpy as np
 import cvxpy as cp
-import sys
+import sys, math
 
 from suggest_utils import calc_reviewer_db_mapping, print_text_report, print_progress
 
@@ -66,7 +66,6 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
     :return: Numpy matrix of length reviewers indicating the score for that reviewer
     """
     agg = np.zeros( (all_scores.shape[0], rdb.shape[1]) )
-    print('agg',agg.shape)
     print(f'Calculating aggregate scores for {all_scores.shape[0]} examples (.=10 examples)', file=sys.stderr)
     for i in range(all_scores.shape[0]):
         scores = all_scores[i]
@@ -88,7 +87,7 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
     return agg
 
 
-def create_suggested_assignment(reviewer_scores, reviewer_levels, reviews_per_paper=3, min_papers_per_reviewer=0, max_papers_per_reviewer=5):
+def create_suggested_assignment(reviewer_scores, reviewer_levels, reviews_per_paper=3, min_papers_per_reviewer=0, max_papers_per_reviewer=5, min_senior_reviewers_per_paper=1, ac_assignment=False):
     num_pap, num_rev = reviewer_scores.shape
     if num_rev*max_papers_per_reviewer < num_pap*reviews_per_paper:
         raise ValueError(f'There are not enough reviewers ({num_rev}) review all the papers ({num_pap})'
@@ -106,10 +105,17 @@ def create_suggested_assignment(reviewer_scores, reviewer_levels, reviews_per_pa
         minrev_constraint = cp.sum(assignment, axis=0) >= min_papers_per_reviewer
         constraints.append(minrev_constraint)
     
-    #at least one senior reviewer     
-    #senior_assignments = reviewer_is_senior * assignment
-    #senior_constraint = cp.sum(senior_assignments, axis=1) >= min_senior_reviewers_per_paper
+    if not ac_assignment:
+        #at least one senior reviewer 
+        levels=np.array(reviewer_levels)
+        senior_reviewers =  assignment * np.vstack([np.where(levels == 4, 2, 0) for i in range(reviewer_scores.shape[1])])
+        less_senior_reviewers =  assignment * np.vstack([np.where(levels == 3, 1, 0) for i in range(reviewer_scores.shape[1])])
 
+        senior_constraint1 = cp.sum(senior_reviewers, axis=1) >= 1
+        senior_constraint2 = cp.sum(less_senior_reviewers, axis=1) >= 1 
+        constraints.append(senior_constraint1)
+        constraints.append(senior_constraint2)
+        #min_senior_reviewers_per_paper
         
     total_sim = cp.sum(cp.multiply(reviewer_scores, assignment))
     assign_prob = cp.Problem(cp.Maximize(total_sim), constraints)
@@ -138,6 +144,8 @@ if __name__ == "__main__":
     parser.add_argument("--min_papers_per_reviewer", default=0, type=int, help="How many papers, minimum, to assign to each reviewer")
     parser.add_argument("--reviews_per_paper", default=3, type=int, help="How many reviews to assign to each paper")
     parser.add_argument("--output_type", default="json", type=str, help="What format of output to produce (json/text)")
+    parser.add_argument("--ac_assignment", action='store_true', default=False, help="Assignment of ACs only?")
+    parser.add_argument("--metareviewers", type=str, help="metareviewer indices")
 
     args = parser.parse_args()
 
@@ -188,18 +196,28 @@ if __name__ == "__main__":
         num_cois = np.sum(np.where(cois == 0, 1, 0))
         print(f'Applying {num_cois} COIs', file=sys.stderr)
 #        reviewer_scores = np.where(cois == 4, reviewer_scores, -1e5)
-        print(len(reviewer_levels), cois)
+#        print(len(reviewer_levels), cois.shape, reviewer_scores.shape)
         reviewer_scores = np.where(cois == 2, reviewer_scores, -1e5)
-        
-        print((a,b) for a, b in zip(cois,reviewer_scores))
-        sys.exit()
+    
+    if args.metareviewers:
+        metareviewers=np.load(args.metareviewers, allow_pickle=True)
+        num_metareviewers=np.sum(metareviewers)
+        metareviewers=np.vstack([metareviewers for i in range(reviewer_scores.shape[0])])
+
+        if args.ac_assignment:
+            max_papers_per_reviewer=math.ceil(reviewer_scores.shape[0]/num_metareviewers)
+            print('number of papers per AC', max_papers_per_reviewer, reviewer_scores.shape, np.sum(metareviewers))
+            reviewer_scores = np.where(metareviewers==1, reviewer_scores, -1e5)
+        else:
+            max_papers_per_reviewer=args.max_papers_per_reviewer
+            reviewer_scores = np.where(metareviewers==0, reviewer_scores, -1e5)
 
     # Calculate a reviewer assignment based on the constraints
     print('Calculating assignment of reviewers', file=sys.stderr)
     assignment, assignment_score = create_suggested_assignment(reviewer_scores, reviewer_levels,
                                              min_papers_per_reviewer=args.min_papers_per_reviewer,
-                                             max_papers_per_reviewer=args.max_papers_per_reviewer,
-                                             reviews_per_paper=args.reviews_per_paper)
+                                             max_papers_per_reviewer=max_papers_per_reviewer,
+                                             reviews_per_paper=args.reviews_per_paper, ac_assignment=args.ac_assignment)
     print(f'Done calculating assignment, total score: {assignment_score}', file=sys.stderr)
 
     # Print out the results
@@ -226,6 +244,17 @@ if __name__ == "__main__":
                 print(json.dumps(ret_dict), file=outf)
             elif args.output_type == 'text':
                 print_text_report(ret_dict, file=outf)
+            elif args.output_type == 'softconf':
+                s=ret_dict['startSubmissionId']+':'
+                for r in ret_dict['assignedReviewers']:
+                    s+=r['startUsername']+':'
+                print(s[:-1], file=outf)
+            elif args.output_type== 'ac_softconf':
+                s=ret_dict['startSubmissionId']+'\t'
+                for r in ret_dict['assignedReviewers']:
+                    s+=r['startUsername']+'\tY'
+                print(s, file=outf)
+                
             else:
                 raise ValueError(f'Illegal output_type {args.output_type}')
 
