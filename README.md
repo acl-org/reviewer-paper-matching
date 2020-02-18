@@ -47,7 +47,7 @@ you may contact the authors to get a model distributed to you.
 and "Author/Reviewer Profiles" saving them to `scratch/Submission_Information.csv` and
 `scratch/Profile_Information.csv`.
 
-Natalie has hard-coded (line 50) a file path to u_tracks.txt, a file with track names.  It is included in the repo.  (Exact same one as for COI detection.)  Please do change this to something smarter.
+Natalie has hard-coded (line 50) a file path to u_tracks.txt, a file with track names.  It is included in the repo, along with tracks.txt.  (Exact same one as for COI detection.)  Please do change this to something smarter.
 
 **Step 2:** Process these files into the jsonl or npy format used by this software:
 
@@ -60,6 +60,8 @@ Natalie has hard-coded (line 50) a file path to u_tracks.txt, a file with track 
 		--tracks_file=tracks.txt \
 		--committee_list=committee_list_[track]_[date].p \
 		--current_track=[track]
+
+Natalie changed this to also constrain reviewer assignment based on self-reported experience.
 
 **Step 3:** Create and save the reviewer assignments:
 

@@ -144,9 +144,9 @@ if __name__ == "__main__":
     parser.add_argument("--output_type", default="json", type=str, help="What format of output to produce (json/text)")
     parser.add_argument("--ac_assignment", action='store_true', default=False, help="Assignment of ACs only?")
     parser.add_argument("--metareviewers", type=str, help="metareviewer indices")
-    parser.add_argument("--date", type=str, help="the date of the experiment")
-    parser.add_argument("--track", help="the track")
-    parser.add_argument('--output_dir', help='output directory if we need it')
+    parser.add_argument("--date", type=str, help="the date of the experiment", default='nodate')
+    parser.add_argument("--track", help="the track", default='notrack')
+    parser.add_argument('--output_dir', help='output directory if we need it', default='')
 
     args = parser.parse_args()
 
