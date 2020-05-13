@@ -5,6 +5,7 @@ import suggest_utils
 import sys
 import numpy as np
 import re
+import pandas
 
 def find_colids(colnames, header):
     colids, colmap = [-1 for _ in colnames], {}
@@ -52,6 +53,7 @@ if __name__ == "__main__":
                 reviewer_map[line[ecol]] = len(reviewers)
                 reviewers.append(rev_data)
             # FIXME: experience / graduation year is also useful
+            # FIXME: have to think about tracks
 
     # Process submissions (if present)
     if not args.submission_in:
@@ -63,28 +65,27 @@ if __name__ == "__main__":
     scol, tcol, abscol, acol, ecol = find_colids(colnames, csv_lines[0])
     submissions, submission_map = [], {}
 
-    # Load up SoftConf bids; best to use output from reviewer-coi-detection using computeCOIs.py 
+    # Load up SoftConf bids
+    #   this can be straight from softconf "Bid_Information.csv"
+    #   but better to use the reviewer-coi-detection code which adds many extra COIs
     bids = np.full( (len(csv_lines)-1, len(reviewers)), 2 ) # Initialize with "Maybes"
     if args.bid_in:
-        bids_in = pandas.read_csv(args.bids_in, skipinitialspace=True, index_col='Submission ID/Username')
+        bids_in = pandas.read_csv(args.bid_in, skipinitialspace=True, index_col='Submission ID/Username')
+        if bids_in.columns[-1].startswith("Unnamed:"):
+            bids_in.drop(bids_in.columns[-1], axis=1, inplace=True)
 
-        for submission_id, bids in bids_in.iterrows():
-            # process COIs 
-            for reviewer_username in bids[bids == '4']:
-                reviewer_id, reviewer_map[reviewer_username]
-                bids[submission_id, reviewer_id] = 0
-            # process Yes
-            for reviewer_username in bids[bids == '1']:
-                reviewer_id, reviewer_map[reviewer_username]
-                bids[submission_id, reviewer_id] = 3
-            # process Maybe
-            for reviewer_username in bids[bids == '2']:
-                reviewer_id, reviewer_map[reviewer_username]
-                bids[submission_id, reviewer_id] = 2
-            # process No
-            for reviewer_username in bids[bids == '3']:
-                reviewer_id, reviewer_map[reviewer_username]
-                bids[submission_id, reviewer_id] = 1
+        for i, (sid, sub_bids) in enumerate(bids_in.iterrows()):
+            # process bids (even with no bidding, this still has COIs)
+            for username, bidding_code in sub_bids.to_dict().items():
+                if bidding_code in '1234':
+                    reviewer_id = reviewer_map.get(username)
+                    if reviewer_id != None:
+                        bids[i, reviewer_id] = 4 - int(bidding_code)
+                        # softconf has 1 = Yes, 2 = Maybe, 3 = No, 4 = COI
+                        # this code base uses 0 = COI, 1 = No, 2 = Maybe, 3 = Yes
+                    else:
+                        # this reviewer is an AC or similar
+                        assert username in profile_map
         
     # Write submissions
     delim_re = re.compile(r'(?:, | and )')
