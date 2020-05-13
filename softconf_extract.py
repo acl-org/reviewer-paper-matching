@@ -51,6 +51,7 @@ if __name__ == "__main__":
                 reviewer_map[line[ucol]] = len(reviewers)
                 reviewer_map[line[ecol]] = len(reviewers)
                 reviewers.append(rev_data)
+            # FIXME: experience / graduation year is also useful
 
     # Process submissions (if present)
     if not args.submission_in:
@@ -62,11 +63,29 @@ if __name__ == "__main__":
     scol, tcol, abscol, acol, ecol = find_colids(colnames, csv_lines[0])
     submissions, submission_map = [], {}
 
-    # Get framework for bids
+    # Load up SoftConf bids; best to use output from reviewer-coi-detection using computeCOIs.py 
     bids = np.full( (len(csv_lines)-1, len(reviewers)), 2 ) # Initialize with "Maybes"
     if args.bid_in:
-        raise NotImplementedError('Processing bids not implemented yet')
+        bids_in = pandas.read_csv(args.bids_in, skipinitialspace=True, index_col='Submission ID/Username')
 
+        for submission_id, bids in bids_in.iterrows():
+            # process COIs 
+            for reviewer_username in bids[bids == '4']:
+                reviewer_id, reviewer_map[reviewer_username]
+                bids[submission_id, reviewer_id] = 0
+            # process Yes
+            for reviewer_username in bids[bids == '1']:
+                reviewer_id, reviewer_map[reviewer_username]
+                bids[submission_id, reviewer_id] = 3
+            # process Maybe
+            for reviewer_username in bids[bids == '2']:
+                reviewer_id, reviewer_map[reviewer_username]
+                bids[submission_id, reviewer_id] = 2
+            # process No
+            for reviewer_username in bids[bids == '3']:
+                reviewer_id, reviewer_map[reviewer_username]
+                bids[submission_id, reviewer_id] = 1
+        
     # Write submissions
     delim_re = re.compile(r'(?:, | and )')
     with open(args.submission_out, 'w') as f:
