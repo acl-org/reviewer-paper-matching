@@ -156,7 +156,7 @@ if __name__ == "__main__":
         assert(mat.shape[0] == len(submission_abs) and mat.shape[1] == len(db_abs))
     else:
         print('Loading model', file=sys.stderr)
-        model, epoch = load_model(None, args.model_file)
+        model, epoch = load_model(None, args.model_file, force_cpu=True)
         model.eval()
         assert not model.training
         mat = calc_similarity_matrix(model, db_abs, submission_abs)

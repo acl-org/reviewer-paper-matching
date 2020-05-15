@@ -16,8 +16,11 @@ from torch import optim
 from model_utils import Example
 from tqdm import tqdm
 
-def load_model(data, load_file):
-    model = torch.load(load_file)
+def load_model(data, load_file, force_cpu=False):
+    if not force_cpu:
+        model = torch.load(load_file)
+    else:
+        model = torch.load(load_file, map_location=torch.device('cpu'))
 
     state_dict = model['state_dict']
     model_args = model['args']
@@ -25,6 +28,9 @@ def load_model(data, load_file):
     vocab_fr = model['vocab_fr']
     optimizer = model['optimizer']
     epoch = model['epoch']
+
+    if force_cpu:
+        model_args.gpu = False
 
     if model_args.model == "avg":
         model = Averaging(data, model_args, vocab, vocab_fr)
