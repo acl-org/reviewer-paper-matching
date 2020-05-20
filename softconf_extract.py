@@ -43,7 +43,6 @@ if __name__ == "__main__":
     reviewers, reviewer_map, profile_map = [], {}, {}
     with open(args.reviewer_out, 'w') as f:
         for i, line in enumerate(csv_lines[1:]):
-            # FIXME: is whitespace a problem around values?
             s2id = line[scol].split('/')[-1] # FIXME: is there better parsing of these from the other repository?
             # Author data
             data = {'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id], 'startUsername': line[ucol]}
@@ -53,8 +52,8 @@ if __name__ == "__main__":
                 # skip over incomplete lines, these folks haven't agreed to the Ts & Cs.
                 continue
 
-            is_area_chair = 'committee' not in line[rcol] 
-            is_senior_area_chair = 'committee:' in line[rcol] and '(manager'
+            is_area_chair = 'Meta Reviewer' in line[rcol]  # FIXME untested
+            is_senior_area_chair = 'committee:' in line[rcol] and '(manager' in line[rcol]
             is_programme_chair = 'committee:manager' in line[rcol]
             is_reviewer = 'committee:' in line[rcol] and not is_senior_area_chair and not is_programme_chair
             agreed_tscs = len(line) >= Ecol+1 and ('reviewer' in line[Rcol] or 'Yes' in line[Ecol])
@@ -62,7 +61,8 @@ if __name__ == "__main__":
             # check for not author, and not PC "manager:committee" and not SAC "committee:<track name> (manager #)"
             if is_reviewer and agreed_tscs or is_area_chair:
                 # split off "committee:<track name>", or just take the string (for ACs)
-                track = re.sub(r'commmittee:', line[rcol], '')
+                track = re.sub(r'committee:', '', line[rcol])
+                track = re.sub(r':?Meta Reviewer:?', '', track).strip()
                 rev_data = {'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id], 'startUsername': line[ucol],
                             'areaChair': is_area_chair, 'emergency': 'Yes' in line[ecol], 'track': track}
                 print(json.dumps(rev_data), file=f)
@@ -71,7 +71,6 @@ if __name__ == "__main__":
                 reviewers.append(rev_data)
 
             # FIXME: experience / graduation year is also useful -- but maybe we will handle this separately
-            # FIXME: what does Roles=committee mean, with no track?
 
     # Process submissions 
     if not args.submission_in: sys.exit(0)
@@ -80,7 +79,7 @@ if __name__ == "__main__":
         csv_lines = list(csv_reader)
     colnames = ['Submission ID', 'Title', 'Abstract|Summary', 'Authors', 'All Author Emails']
     scol, tcol, abscol, acol, ecol = find_colids(colnames, csv_lines[0])
-    icols = find_colids([f'{i}: Username' for i in range(1, 8+1)], csv_lines[0])
+    icols = find_colids([f'{i}: Username' for i in range(1, 9+1)], csv_lines[0])
     submissions, submission_map = [], {}
 
     # Load up SoftConf bids
@@ -102,13 +101,14 @@ if __name__ == "__main__":
                         # softconf has 1 = Yes, 2 = Maybe, 3 = No, 4 = COI
                         # this code base uses 0 = COI, 1 = No, 2 = Maybe, 3 = Yes
                     else:
-                        # this reviewer is an AC or similar
+                        # this reviewer is an SAC or similar
                         assert username in profile_map
         
     # Write submissions
     delim_re = re.compile(r'(?:, | and )')
     with open(args.submission_out, 'w') as f:
         for i, line in enumerate(csv_lines[1:]):
+            #print(i,line)
             author_emails = line[ecol].split('; ')
             author_names = re.split(delim_re, line[acol])
             author_startids = [line[icols[j]] for j in range(len(author_emails))]
