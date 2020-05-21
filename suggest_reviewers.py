@@ -132,6 +132,16 @@ if __name__ == "__main__":
     parser.add_argument("--reviews_per_paper", default=3, type=int, help="How many reviews to assign to each paper")
     parser.add_argument("--output_type", default="json", type=str, help="What format of output to produce (json/text)")
 
+    # FIXME: implement these new functions
+    parser.add_argument("--quota_file", help="A CSV file listing reviewer usernames with their maximum number of papers")
+    parser.add_argument("--track", help="Ensure reviewers and papers match in terms of track")
+    parser.add_argument("--one_track", type=str, default="", help="Only assign for to this single track")
+    parser.add_argument("--area_chairs", help="Assign papers to area chairs (default is reviewers)")
+    parser.add_argument("--short_paper_weight", type=float, default=0.6, help="How to count a short paper relative to a long paper when assessing quota")
+    # Hmm, I wonder if I could use this to assign to tracks -- using the pool of ACs for each track as "reviewers". 
+    # Actually we wouldn't need a complex quota mechanism here, although we may want to review the scores (e.g., list the top 3) tracks.
+    # Base this on the same matching code, i.e., paper - reviewer's papers. Should we include SACs alongside ACs here?
+
     args = parser.parse_args()
 
     # Load the data

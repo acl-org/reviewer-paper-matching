@@ -49,22 +49,22 @@ if __name__ == "__main__":
             profile_map[line[ucol]] = data
             profile_map[line[ecol]] = data
             if len(line) < Ecol+1:
-                # skip over incomplete lines, these folks haven't agreed to the Ts & Cs.
-                continue
+                line.extend([''] * (Ecol+1))
 
-            is_area_chair = 'Meta Reviewer' in line[rcol]  # FIXME untested
+            is_area_chair = 'Meta Reviewer' in line[rcol] 
             is_senior_area_chair = 'committee:' in line[rcol] and '(manager' in line[rcol]
             is_programme_chair = 'committee:manager' in line[rcol]
             is_reviewer = 'committee:' in line[rcol] and not is_senior_area_chair and not is_programme_chair
             agreed_tscs = len(line) >= Ecol+1 and ('reviewer' in line[Rcol] or 'Yes' in line[Ecol])
 
             # check for not author, and not PC "manager:committee" and not SAC "committee:<track name> (manager #)"
-            if is_reviewer and agreed_tscs or is_area_chair:
-                # split off "committee:<track name>", or just take the string (for ACs)
+            if is_reviewer and agreed_tscs or is_area_chair or is_senior_area_chair:
                 track = re.sub(r'committee:', '', line[rcol])
                 track = re.sub(r':?Meta Reviewer:?', '', track).strip()
+                track = re.sub(r':[^:]*\(manager \d\)', '', track)
                 rev_data = {'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id], 'startUsername': line[ucol],
-                            'areaChair': is_area_chair, 'emergency': 'Yes' in line[ecol], 'track': track}
+                            'areaChair': is_area_chair, 'emergency': ('Yes' in line[Ecol]), 'track': track,
+                            'seniorAreaChair': is_senior_area_chair}
                 print(json.dumps(rev_data), file=f)
                 reviewer_map[line[ucol]] = len(reviewers)
                 reviewer_map[line[ecol]] = len(reviewers)
@@ -77,8 +77,8 @@ if __name__ == "__main__":
     with open(args.submission_in, 'r') as f:
         csv_reader = csv.reader(f, delimiter=',')
         csv_lines = list(csv_reader)
-    colnames = ['Submission ID', 'Title', 'Abstract|Summary', 'Authors', 'All Author Emails']
-    scol, tcol, abscol, acol, ecol = find_colids(colnames, csv_lines[0])
+    colnames = ['Submission ID', 'Title', 'Track', 'PrimaryTrackPreference', 'Abstract|Summary', 'Authors', 'All Author Emails']
+    scol, tcol, rcol, rpcol, abscol, acol, ecol = find_colids(colnames, csv_lines[0])
     icols = find_colids([f'{i}: Username' for i in range(1, 9+1)], csv_lines[0])
     submissions, submission_map = [], {}
 
@@ -129,8 +129,13 @@ if __name__ == "__main__":
                 else:
                     print(f'WARNING: could not find account for {ae}, just using name {an}; username is "{ai}"')
                     authors.append({'name': an, 'ids': []})
+    
+            if line[rcol]:
+                track = line[rcol]
+            else:
+                track = line[rpcol]
 
-            data = {'title': line[tcol], 'paperAbstract': line[abscol], 'authors': authors, 'startSubmissionId': line[scol]}
+            data = {'title': line[tcol], 'track': track, 'paperAbstract': line[abscol], 'authors': authors, 'startSubmissionId': line[scol]}
             submissions.append(data)
             submission_map[line[scol]] = i
             print(json.dumps(data), file=f)
