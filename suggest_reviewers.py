@@ -6,6 +6,7 @@ from models import load_model
 import numpy as np
 import cvxpy as cp
 import sys
+from collections import defaultdict
 
 from suggest_utils import calc_reviewer_db_mapping, print_text_report, print_progress
 
@@ -147,9 +148,9 @@ if __name__ == "__main__":
     parser.add_argument("--output_type", default="json", type=str, help="What format of output to produce (json/text)")
 
     parser.add_argument("--quota_file", help="A CSV file listing reviewer usernames with their maximum number of papers")
-    parser.add_argument("--track", help="Ensure reviewers and papers match in terms of track")
-    parser.add_argument("--one_track", type=str, default="", help="Only assign for to this single track")
-    parser.add_argument("--area_chairs", help="Assign papers to area chairs (default is reviewers); ensure min/max_papers_per_reviewer are set accordingly")
+    parser.add_argument("--track", action='store_true', help="Ensure reviewers and papers match in terms of track")
+    parser.add_argument("--one_track", help="Only assign for to this single track")
+    parser.add_argument("--area_chairs", action='store_true', help="Assign papers to area chairs (default is reviewers); ensure min/max_papers_per_reviewer are set accordingly")
     #parser.add_argument("--short_paper_weight", type=float, default=0.7, help="How to count a short paper relative to a long paper when assessing quota")
 
     args = parser.parse_args()
@@ -217,30 +218,35 @@ if __name__ == "__main__":
         print(f'Set {len(quotas)} reviewer quotas', file=sys.stderr)
 
     # Ensure ACs are excluded from assignment, unless --area_chairs option specified
-    num_excluded = 0
+    num_excluded = num_included = 0
     for j, reviewer in enumerate(reviewer_data):
-        if reviewer['isSeniorAreaChair'] or (reviewer['isAreaChair'] ^ (not args.area_chairs)):
+        if reviewer['seniorAreaChair'] or (reviewer['areaChair'] != bool(args.area_chairs)):
             num_excluded += 1
-            reviewer_scores[:,j] = 1e5
-    print(f'Excluded {num_excluded} reviewers/chairs', file=sys.stderr)
+            reviewer_scores[:,j] = -1e5
+        else:
+            num_included += 1
+    print(f'Excluded {num_excluded} reviewers/chairs, leaving {num_included}', file=sys.stderr)
                 
     # Ensure that reviewer tracks match the paper track
     if args.track or args.one_track:
+        # index the papers and reviewers by track
         track_papers = defaultdict(list)
         track_reviewers = defaultdict(list)
-
         for j, reviewer in enumerate(reviewer_data):
             track_reviewers[reviewer['track']].append(j)
-
-        for i, submission in submissions:
+        for i, submission in enumerate(submissions):
             if submission['track']:
                 track_papers[submission['track']].append(i)
-            
+            else:
+                raise ValueError(f'Submission {submission["startSubmissionId"]} has no track assigned')
+        assert track_papers.keys() == track_reviewers.keys()
+
+        # work out which tracks to use    
         all_tracks = track_papers.keys()
         if args.one_track:
             assert args.one_track in all_tracks
             all_tracks = [args.one_track]
-
+        # mask defines valid reviewer paper pairings
         mask = np.zeros_like(reviewer_scores)
         for track in all_tracks:
             ps = track_papers[track]
@@ -248,8 +254,7 @@ if __name__ == "__main__":
             for p in ps:
                 for r in rs:
                     mask[p,r] = 1
-        reviewer_scores = np.where(mask == 0, reviewer_scores, 1e-5)
-
+        reviewer_scores = np.where(mask == 0, reviewer_scores, -1e-5)
         print(f'Applying track constraints for {len(all_tracks)} tracks', file=sys.stderr)
 
     # FIXME: should we weight short papers separately to long papers in the review assignments?
