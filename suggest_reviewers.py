@@ -12,7 +12,6 @@ from suggest_utils import calc_reviewer_db_mapping, print_text_report, print_pro
 BATCH_SIZE = 128
 entok = MosesTokenizer(lang='en')
 
-
 def create_embeddings(model, examps):
     """Embed textual examples
 
@@ -87,7 +86,7 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
     return agg
 
 
-def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers_per_reviewer=0, max_papers_per_reviewer=5):
+def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers_per_reviewer=0, max_papers_per_reviewer=5, quotas=None):
     num_pap, num_rev = reviewer_scores.shape
     if num_rev*max_papers_per_reviewer < num_pap*reviews_per_paper:
         raise ValueError(f'There are not enough reviewers ({num_rev}) review all the papers ({num_pap})'
@@ -98,11 +97,26 @@ def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers
                          f' given a constraint of {reviews_per_paper} reviews per paper and'
                          f' a minimum of {min_papers_per_reviewer} reviews per reviewer')
     assignment = cp.Variable(shape=reviewer_scores.shape, boolean=True)
-    maxrev_constraint = cp.sum(assignment, axis=0) <= max_papers_per_reviewer
+    if not quotas:
+        maxrev_constraint = cp.sum(assignment, axis=0) <= max_papers_per_reviewer
+    else:
+        max_papers = np.zeros((num_rev,), dtype=np.int32)
+        max_papers[:] = max_papers_per_reviewer
+        for j, q in quotas.items():
+            max_papers[j] = q
+        maxrev_constraint = cp.sum(assignment, axis=0) <= max_papers
+        
     pap_constraint = cp.sum(assignment, axis=1) == reviews_per_paper
     constraints = [maxrev_constraint, pap_constraint]
     if min_papers_per_reviewer > 0:
-        minrev_constraint = cp.sum(assignment, axis=0) >= min_papers_per_reviewer
+        if not quotas:
+            minrev_constraint = cp.sum(assignment, axis=0) >= min_papers_per_reviewer
+        else:
+            min_papers = np.zeros((num_rev,), dtype=np.int32)
+            min_papers[:] = min_papers_per_reviewer
+            for j, q in quotas.items():
+                min_papers[j] = min(min_papers_per_reviewer, q)
+            minrev_constraint = cp.sum(assignment, axis=0) >= min_papers
         constraints.append(minrev_constraint)
     total_sim = cp.sum(cp.multiply(reviewer_scores, assignment))
     assign_prob = cp.Problem(cp.Maximize(total_sim), constraints)
@@ -132,15 +146,11 @@ if __name__ == "__main__":
     parser.add_argument("--reviews_per_paper", default=3, type=int, help="How many reviews to assign to each paper")
     parser.add_argument("--output_type", default="json", type=str, help="What format of output to produce (json/text)")
 
-    # FIXME: implement these new functions
     parser.add_argument("--quota_file", help="A CSV file listing reviewer usernames with their maximum number of papers")
     parser.add_argument("--track", help="Ensure reviewers and papers match in terms of track")
     parser.add_argument("--one_track", type=str, default="", help="Only assign for to this single track")
-    parser.add_argument("--area_chairs", help="Assign papers to area chairs (default is reviewers)")
-    parser.add_argument("--short_paper_weight", type=float, default=0.6, help="How to count a short paper relative to a long paper when assessing quota")
-    # Hmm, I wonder if I could use this to assign to tracks -- using the pool of ACs for each track as "reviewers". 
-    # Actually we wouldn't need a complex quota mechanism here, although we may want to review the scores (e.g., list the top 3) tracks.
-    # Base this on the same matching code, i.e., paper - reviewer's papers. Should we include SACs alongside ACs here?
+    parser.add_argument("--area_chairs", help="Assign papers to area chairs (default is reviewers); ensure min/max_papers_per_reviewer are set accordingly")
+    #parser.add_argument("--short_paper_weight", type=float, default=0.7, help="How to count a short paper relative to a long paper when assessing quota")
 
     args = parser.parse_args()
 
@@ -190,12 +200,68 @@ if __name__ == "__main__":
         print(f'Applying {num_cois} COIs', file=sys.stderr)
         reviewer_scores = np.where(cois == 0, reviewer_scores, -1e5)
 
+    # Load reviewer specific quotas
+    quotas = {}
+    if args.quota_file:
+        username_to_idx = dict([(r['startUsername'], j) for j, r in enumerate(reviewer_data)])
+    
+        quotas_table = pandas.read_csv(args.quota_file, skipinitialspace=True, quotechar='"', encoding = "UTF-8")
+        quotas_table.fillna('', inplace=True)
+        for i, line in quotas_table.iterrows():
+            u, q = line['Username'], line['Quota']
+            idx = username_to_id.get(u)
+            if idx != None:
+                quotas[idx] = int(q)
+            else:
+                raise ValueError(f'Reviewer account {u} in quota file not found in reviewer database')
+        print(f'Set {len(quotas)} reviewer quotas', file=sys.stderr)
+
+    # Ensure ACs are excluded from assignment, unless --area_chairs option specified
+    num_excluded = 0
+    for j, reviewer in enumerate(reviewer_data):
+        if reviewer['isSeniorAreaChair'] or (reviewer['isAreaChair'] ^ (not args.area_chairs)):
+            num_excluded += 1
+            reviewer_scores[:,j] = 1e5
+    print(f'Excluded {num_excluded} reviewers/chairs', file=sys.stderr)
+                
+    # Ensure that reviewer tracks match the paper track
+    if args.track or args.one_track:
+        track_papers = defaultdict(list)
+        track_reviewers = defaultdict(list)
+
+        for j, reviewer in enumerate(reviewer_data):
+            track_reviewers[reviewer['track']].append(j)
+
+        for i, submission in submissions:
+            if submission['track']:
+                track_papers[submission['track']].append(i)
+            
+        all_tracks = track_papers.keys()
+        if args.one_track:
+            assert args.one_track in all_tracks
+            all_tracks = [args.one_track]
+
+        mask = np.zeros_like(reviewer_scores)
+        for track in all_tracks:
+            ps = track_papers[track]
+            rs = track_reviewers[track]
+            for p in ps:
+                for r in rs:
+                    mask[p,r] = 1
+        reviewer_scores = np.where(mask == 0, reviewer_scores, 1e-5)
+
+        print(f'Applying track constraints for {len(all_tracks)} tracks', file=sys.stderr)
+
+    # FIXME: should we weight short papers separately to long papers in the review assignments?
+    # E.g., assume 5 long papers = 7 short papers, or is this too painful
+
     # Calculate a reviewer assignment based on the constraints
     print('Calculating assignment of reviewers', file=sys.stderr)
     assignment, assignment_score = create_suggested_assignment(reviewer_scores,
                                              min_papers_per_reviewer=args.min_papers_per_reviewer,
                                              max_papers_per_reviewer=args.max_papers_per_reviewer,
-                                             reviews_per_paper=args.reviews_per_paper)
+                                             reviews_per_paper=args.reviews_per_paper,
+                                             quotas=quotas)
     print(f'Done calculating assignment, total score: {assignment_score}', file=sys.stderr)
 
     # Print out the results

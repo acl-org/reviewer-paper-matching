@@ -77,8 +77,8 @@ if __name__ == "__main__":
     with open(args.submission_in, 'r') as f:
         csv_reader = csv.reader(f, delimiter=',')
         csv_lines = list(csv_reader)
-    colnames = ['Submission ID', 'Title', 'Track', 'PrimaryTrackPreference', 'Abstract|Summary', 'Authors', 'All Author Emails']
-    scol, tcol, rcol, rpcol, abscol, acol, ecol = find_colids(colnames, csv_lines[0])
+    colnames = ['Submission ID', 'Title', 'Track', 'PrimaryTrackPreference', 'Submission Type', 'Abstract|Summary', 'Authors', 'All Author Emails']
+    scol, tcol, rcol, rpcol, ycol, abscol, acol, ecol = find_colids(colnames, csv_lines[0])
     icols = find_colids([f'{i}: Username' for i in range(1, 9+1)], csv_lines[0])
     submissions, submission_map = [], {}
 
@@ -135,7 +135,14 @@ if __name__ == "__main__":
             else:
                 track = line[rpcol]
 
-            data = {'title': line[tcol], 'track': track, 'paperAbstract': line[abscol], 'authors': authors, 'startSubmissionId': line[scol]}
+            if 'short' in line[ycol].lower():
+                typ = 'short'
+            elif 'long' in line[ycol].lower():
+                typ = 'long'
+            else:
+                raise ValueError(f'Illegal Submission Type {line[ycol]}')
+
+            data = {'title': line[tcol], 'track': track, 'type': typ, 'paperAbstract': line[abscol], 'authors': authors, 'startSubmissionId': line[scol]}
             submissions.append(data)
             submission_map[line[scol]] = i
             print(json.dumps(data), file=f)

@@ -64,9 +64,7 @@ if __name__ == "__main__":
                 track_rdb[:,i] = np.logical_or(track_rdb[:,i], rdb[:,id])
         tracks.append(track)
 
-    # FIXME: could use all reviewers in track?
-
-
+    # FIXME: could use all reviewers in track as way of representing tracks (could even sub-sample to balance)
 
     # Calculate or load paper similarity matrix
     if args.load_paper_matrix:
