@@ -149,7 +149,6 @@ if __name__ == "__main__":
 
     parser.add_argument("--quota_file", help="A CSV file listing reviewer usernames with their maximum number of papers")
     parser.add_argument("--track", action='store_true', help="Ensure reviewers and papers match in terms of track")
-    parser.add_argument("--one_track", help="Only assign for to this single track")
     parser.add_argument("--area_chairs", action='store_true', help="Assign papers to area chairs (default is reviewers); ensure min/max_papers_per_reviewer are set accordingly")
     #parser.add_argument("--short_paper_weight", type=float, default=0.7, help="How to count a short paper relative to a long paper when assessing quota")
 
@@ -228,7 +227,7 @@ if __name__ == "__main__":
     print(f'Excluded {num_excluded} reviewers/chairs, leaving {num_included}', file=sys.stderr)
                 
     # Ensure that reviewer tracks match the paper track
-    if args.track or args.one_track:
+    if args.track:
         # index the papers and reviewers by track
         track_papers = defaultdict(list)
         track_reviewers = defaultdict(list)
@@ -239,22 +238,20 @@ if __name__ == "__main__":
                 track_papers[submission['track']].append(i)
             else:
                 raise ValueError(f'Submission {submission["startSubmissionId"]} has no track assigned')
-        assert track_papers.keys() == track_reviewers.keys()
 
-        # work out which tracks to use    
-        all_tracks = track_papers.keys()
-        if args.one_track:
-            assert args.one_track in all_tracks
-            all_tracks = [args.one_track]
+        if track_papers.keys() != track_reviewers.keys():
+            raise ValueError(f'Tracks mismatch between submissions and reviewers')
+
         # mask defines valid reviewer paper pairings
         mask = np.zeros_like(reviewer_scores)
-        for track in all_tracks:
+        for track in track_papers.keys():
             ps = track_papers[track]
             rs = track_reviewers[track]
             for p in ps:
                 for r in rs:
                     mask[p,r] = 1
-        reviewer_scores = np.where(mask == 0, reviewer_scores, -1e-5)
+
+        reviewer_scores = np.where(mask == 1, reviewer_scores, -1e5)
         print(f'Applying track constraints for {len(all_tracks)} tracks', file=sys.stderr)
 
     # FIXME: should we weight short papers separately to long papers in the review assignments?
@@ -265,8 +262,7 @@ if __name__ == "__main__":
     assignment, assignment_score = create_suggested_assignment(reviewer_scores,
                                              min_papers_per_reviewer=args.min_papers_per_reviewer,
                                              max_papers_per_reviewer=args.max_papers_per_reviewer,
-                                             reviews_per_paper=args.reviews_per_paper,
-                                             quotas=quotas)
+                                             reviews_per_paper=args.reviews_per_paper, quotas=quotas)
     print(f'Done calculating assignment, total score: {assignment_score}', file=sys.stderr)
 
     # Print out the results
