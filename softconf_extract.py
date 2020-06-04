@@ -77,9 +77,9 @@ if __name__ == "__main__":
     with open(args.submission_in, 'r') as f:
         csv_reader = csv.reader(f, delimiter=',')
         csv_lines = list(csv_reader)
-    colnames = ['Submission ID', 'Title', 'Track', 'PrimaryTrackPreference', 'Submission Type', 'Abstract|Summary', 'Authors', 'All Author Emails']
-    scol, tcol, rcol, rpcol, ycol, abscol, acol, ecol = find_colids(colnames, csv_lines[0])
-    icols = find_colids([f'{i}: Username' for i in range(1, 9+1)], csv_lines[0])
+    colnames = ['Submission ID', 'Title', 'Track', 'Submission Type', 'Abstract|Summary', 'Authors', 'All Author Emails']
+    scol, tcol, rcol, ycol, abscol, acol, ecol = find_colids(colnames, csv_lines[0])
+    icols = find_colids([f'{i}: Username' for i in range(1, 99)], csv_lines[0])
     submissions, submission_map = [], {}
 
     # Load up SoftConf bids
@@ -130,10 +130,8 @@ if __name__ == "__main__":
                     print(f'WARNING: could not find account for {ae}, just using name {an}; username is "{ai}"')
                     authors.append({'name': an, 'ids': []})
     
-            if line[rcol]:
-                track = line[rcol]
-            else:
-                track = line[rpcol]
+            track = line[rcol]
+            assert track
 
             if 'short' in line[ycol].lower():
                 typ = 'short'

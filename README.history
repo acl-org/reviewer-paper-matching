@@ -1,0 +1,12 @@
+dir=emnlp.20200604
+
+python3 softconf_extract.py --profile_in=$dir/Profile_Information.csv --submission_in=$dir/Submission_Information.csv --bid_in=$dir/Bid_Information_Augmented.csv --reviewer_out=$dir/reviewers.jsonl --submission_out=$dir/submissions.jsonl --bid_out=$dir/cois.npy
+
+if [ -f $dir/paper_matrix.npy ]
+then
+    python3 suggest_reviewers.py         --submission_file=$dir/submissions.jsonl         --db_file=scratch/acl-anthology.json         --reviewer_file=$dir/reviewers.jsonl         --model_file=scratch/similarity-model.pt         --max_papers_per_reviewer=6         --reviews_per_paper=3  --suggestion_file=$dir/assignments.jsonl --bid_file=$dir/cois.npy --load_paper_matrix=$dir/paper_matrix.npy --load_aggregate_matrix=$dir/agg_matrix.npy
+else
+    python3 suggest_reviewers.py         --submission_file=$dir/submissions.jsonl         --db_file=scratch/acl-anthology.json         --reviewer_file=$dir/reviewers.jsonl         --model_file=scratch/similarity-model.pt         --max_papers_per_reviewer=6         --reviews_per_paper=3  --suggestion_file=$dir/assignments.jsonl --bid_file=$dir/cois.npy --save_paper_matrix=$dir/paper_matrix.npy --save_aggregate_matrix=$dir/agg_matrix.npy
+fi
+
+python3 softconf_package.py --suggestion_file $dir/assignments.jsonl > $dir/start-assignments.csv
