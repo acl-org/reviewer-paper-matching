@@ -52,7 +52,7 @@ if __name__ == "__main__":
                 line.extend([''] * (Ecol+1))
 
             is_area_chair = 'Meta Reviewer' in line[rcol] 
-            is_senior_area_chair = 'committee:' in line[rcol] and '(manager' in line[rcol]
+            is_senior_area_chair = '(manager' in line[rcol]
             is_programme_chair = 'committee:manager' in line[rcol]
             is_reviewer = 'committee:' in line[rcol] and not is_senior_area_chair and not is_programme_chair
             agreed_tscs = len(line) >= Ecol+1 and ('reviewer' in line[Rcol] or 'Yes' in line[Ecol])
@@ -61,7 +61,10 @@ if __name__ == "__main__":
             if is_reviewer and agreed_tscs or is_area_chair or is_senior_area_chair:
                 track = re.sub(r'committee:', '', line[rcol])
                 track = re.sub(r':?Meta Reviewer:?', '', track).strip()
-                track = re.sub(r':[^:]*\(manager \d\)', '', track)
+                track = re.sub(r'^:', '', track).strip()
+                if is_senior_area_chair:
+                    # sigh, some track names contain the separator symbol ':'
+                    track = re.sub(r'(.+):\1 \(manager.*', r'\1', track)
                 rev_data = {'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id], 'startUsername': line[ucol],
                             'areaChair': is_area_chair, 'emergency': ('Yes' in line[Ecol]), 'track': track,
                             'seniorAreaChair': is_senior_area_chair}

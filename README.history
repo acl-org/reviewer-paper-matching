@@ -1,4 +1,4 @@
-dir=emnlp.20200604
+dir=emnlp.20200605
 
 python3 softconf_extract.py --profile_in=$dir/Profile_Information.csv --submission_in=$dir/Submission_Information.csv --bid_in=$dir/Bid_Information_Augmented.csv --reviewer_out=$dir/reviewers.jsonl --submission_out=$dir/submissions.jsonl --bid_out=$dir/cois.npy
 
@@ -10,3 +10,6 @@ else
 fi
 
 python3 softconf_package.py --suggestion_file $dir/assignments.jsonl > $dir/start-assignments.csv
+
+# assuming paper matrix save, o/w run with --save_paper_matrix
+python3 suggest_tracks.py         --submission_file=$dir/submissions.jsonl         --db_file=scratch/acl-anthology.json         --reviewer_file=$dir/reviewers.jsonl         --model_file=scratch/similarity-model.pt         --load_paper_matrix=$dir/paper_matrix.npy --bid_file=$dir/cois.npy  --output_file=$dir/track_suggestions.csv
