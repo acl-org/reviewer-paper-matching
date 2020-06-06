@@ -24,11 +24,13 @@ if __name__ == "__main__":
     parser.add_argument("--reviewer_file", type=str, required=True, help="A json file of reviewer names and IDs that can review this time")
     parser.add_argument("--model_file", help="filename to load the pre-trained semantic similarity file.")
     parser.add_argument("--filter_field", type=str, default="name", help="Which field to use as the reviewer ID (name/id)")
-    parser.add_argument("--aggregator", type=str, default="weighted_top9", help="Aggregation type (max, weighted_topN where N is a number)")
+    parser.add_argument("--aggregator", type=str, default="weighted_top5", help="Aggregation type (max, weighted_topN where N is a number)")
     parser.add_argument("--bid_file", type=str, default=None, help="A file containing numpy array of bids (0 = COI, >1 = no COI).")
     parser.add_argument("--output_file", type=str, default=None, help="Output file path for CSV result sheet")
     parser.add_argument("--save_paper_matrix", help="A filename for where to save the paper similarity matrix")
     parser.add_argument("--load_paper_matrix", help="A filename for where to load the cached paper similarity matrix")
+    parser.add_argument("--save_aggregate_matrix", help="A filename for where to save the reviewer-paper aggregate matrix")
+    parser.add_argument("--load_aggregate_matrix", help="A filename for where to load the cached reviewer-paper aggregate matrix")
 
     args = parser.parse_args()
 
@@ -76,21 +78,6 @@ if __name__ == "__main__":
     # create binary matrix of reviewer x paper
     rdb = calc_reviewer_db_mapping(reviewer_data, db, author_col=args.filter_field, author_field='authors')
 
-    # reduce to matrix of track x paper, by taking logical or
-    reviewer_id_map = calc_reviewer_id_mapping(reviewer_data, author_col=args.filter_field)
-    track_rdb = np.zeros( (rdb.shape[0], num_tracks) )
-    tracks = []
-    for i, (track, ac_names) in enumerate(acs_by_track.items()):
-        for ac in ac_names:
-            for id in reviewer_id_map[ac]:
-                track_rdb[:,i] = np.logical_or(track_rdb[:,i], rdb[:,id])
-        tracks.append(track)
-
-    # FIXME: could use all reviewers in track as way of representing tracks (could even sub-sample to balance)
-
-    # Load and process COIs
-    cois = np.where(np.load(args.bid_file) == 0, 1, 0) if args.bid_file else None
-
     # Calculate or load paper similarity matrix
     if args.load_paper_matrix:
         mat = np.load(args.load_paper_matrix)
@@ -105,32 +92,38 @@ if __name__ == "__main__":
             np.save(args.save_paper_matrix, mat)
 
     # Calculate reviewer scores based on paper similarity scores
-    print('Calculating aggregate track scores', file=sys.stderr)
-    track_scores = calc_aggregate_reviewer_score(track_rdb, mat, args.aggregator)
+    if args.load_aggregate_matrix:
+        reviewer_scores = np.load(args.load_aggregate_matrix)
+        assert(reviewer_scores.shape[0] == len(submission_abs) and reviewer_scores.shape[1] == len(reviewer_names))
+    else:
+        print('Calculating aggregate reviewer scores', file=sys.stderr)
+        reviewer_scores = calc_aggregate_reviewer_score(rdb, mat, args.aggregator)
+        if args.save_aggregate_matrix:
+            np.save(args.save_aggregate_matrix, reviewer_scores)
 
-    #k = 5
+    # Load and process COIs
+    cois = np.where(np.load(args.bid_file) == 0, 1, 0) if args.bid_file else None
+
+    k = 10
     rows = []
     for i, query in enumerate(submissions):
-        scores = track_scores[i]
-        #best_tracks = scores.argsort()[-k:][::-1]
-        #
-        row = {'Submission ID': query['startSubmissionId'], 'Title': query['title'], 'Track': query['track']}
-        #for i, idx in enumerate(best_tracks):
-        for idx, track in enumerate(tracks):
-            #row[f'Suggest{i+1}'] = tracks[idx]
-            #row[f'Score{i+1}'] = scores[idx]
-            row[track] = scores[idx]
-        #
+        scores = reviewer_scores[i]
+        row = dict({'Submission ID': query['startSubmissionId'], 'Title': query['title'], 'Track': query['track']})
+        for track, reviewers in reviewers_by_track.items():
+            # find best reviewers, as mean similarity of top k reviewers in track
+            rids = [reviewer_id_map[id] for ids in reviewers for id in ids]
+            rscores = scores[rids]
+            tscore = np.mean(rscores.argsort()[-k:])
+            row[track] = tscore
+            
         if not cois is None:
             for track in tracks:
-                coi = True
+                coi = []
                 for sac in sacs_by_track[track]:
                     ids = reviewer_id_map[sac]
                     if not np.any(cois[i,ids]):
-                        coi = False
-                        break
-                row[f'COI:{track}'] = 1 if coi else 0
-        #
+                        coi = sac
+                row[f'COI-{track}'] = ';'.join(coi)
         rows.append(row)
 
     results = pandas.DataFrame(rows)
