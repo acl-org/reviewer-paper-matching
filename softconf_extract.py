@@ -84,9 +84,10 @@ if __name__ == "__main__":
     with open(args.submission_in, 'r') as f:
         csv_reader = csv.reader(f, delimiter=',')
         csv_lines = list(csv_reader)
-    colnames = ['Submission ID', 'Title', 'Track', 'Submission Type', 'Abstract|Summary', 'Authors', 'All Author Emails']
-    scol, tcol, rcol, ycol, abscol, acol, ecol = find_colids(colnames, csv_lines[0])
+    colnames = ['Submission ID', 'Title', 'Track', 'Submission Type', 'Abstract|Summary', 'Authors', 'All Author Emails', 'Status']
+    scol, tcol, rcol, ycol, abscol, acol, ecol, stcol = find_colids(colnames, csv_lines[0])
     icols = find_colids([f'{i}: Username' for i in range(1, 99)], csv_lines[0])
+    submissions = []
     submissions, submission_map = [], {}
 
     # Load up SoftConf bids
@@ -116,10 +117,12 @@ if __name__ == "__main__":
     not_found = set()
     with open(args.submission_out, 'w') as f:
         for i, line in enumerate(csv_lines[1:]):
+            if 'Reject' in line[stcol]: continue # skip past withdrawn papers & desk rejects
             #print(i,line)
             author_emails = line[ecol].split('; ')
             author_names = re.split(delim_re, line[acol])
             author_startids = [line[icols[j]] for j in range(len(author_emails))]
+            
             authors = []
             for ae, an, ai in zip(author_emails, author_names, author_startids):
                 aep = profile_map.get(ae)
@@ -150,7 +153,7 @@ if __name__ == "__main__":
 
             data = {'title': line[tcol], 'track': track, 'type': typ, 'paperAbstract': line[abscol], 'authors': authors, 'startSubmissionId': line[scol]}
             submissions.append(data)
-            submission_map[line[scol]] = i
+            #submission_map[line[scol]] = i
             print(json.dumps(data), file=f)
 
     if args.bid_out:

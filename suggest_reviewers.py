@@ -7,6 +7,7 @@ import numpy as np
 import cvxpy as cp
 import sys
 from collections import defaultdict
+import pandas as pd
 
 from suggest_utils import calc_reviewer_db_mapping, print_text_report, print_progress
 
@@ -70,12 +71,14 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
     for i in range(all_scores.shape[0]):
         scores = all_scores[i]
         INVALID_SCORE = 0
+        # slow -- 2-3 secs
         scored_rdb = rdb * scores.reshape((len(scores), 1)) + (1-rdb) * INVALID_SCORE
         if operator == 'max':
             agg[i] = np.amax(scored_rdb, axis=0)
         elif operator.startswith('weighted_top'):
             k = int(operator[12:])
             weighting = np.reshape(1/np.array(range(1, k+1)), (k,1))
+            # slow -- 2-3 secs
             scored_rdb.sort(axis=0)
             topk = scored_rdb[-k:,:]
             agg[i] = (topk*weighting).sum(axis=0)
@@ -104,6 +107,8 @@ def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers
         max_papers[:] = max_papers_per_reviewer
         for j, q in quotas.items():
             max_papers[j] = q
+            if q > max_papers_per_reviewer:
+                print(f'WARNING setting max_papers to {q} exceeds default value of {max_papers_per_reviewer}')
         maxrev_constraint = cp.sum(assignment, axis=0) <= max_papers
         
     pap_constraint = cp.sum(assignment, axis=1) == reviews_per_paper
@@ -215,11 +220,11 @@ if __name__ == "__main__":
     if args.quota_file:
         username_to_idx = dict([(r['startUsername'], j) for j, r in enumerate(reviewer_data)])
     
-        quotas_table = pandas.read_csv(args.quota_file, skipinitialspace=True, quotechar='"', encoding = "UTF-8")
+        quotas_table = pd.read_csv(args.quota_file, skipinitialspace=True, quotechar='"', encoding = "UTF-8")
         quotas_table.fillna('', inplace=True)
         for i, line in quotas_table.iterrows():
             u, q = line['Username'], line['Quota']
-            idx = username_to_id.get(u)
+            idx = username_to_idx.get(u)
             if idx != None:
                 quotas[idx] = int(q)
             else:
@@ -229,11 +234,18 @@ if __name__ == "__main__":
     # Ensure ACs are excluded from assignment, unless --area_chairs option specified
     num_excluded = num_included = 0
     for j, reviewer in enumerate(reviewer_data):
-        if reviewer['seniorAreaChair'] or (reviewer['areaChair'] != bool(args.area_chairs)):
-            num_excluded += 1
-            reviewer_scores[:,j] = -1e5
+        if args.area_chairs:
+            if not reviewer['areaChair']:
+                num_excluded += 1
+                reviewer_scores[:,j] = -1e5
+            else:
+                num_included += 1
         else:
-            num_included += 1
+            if reviewer['seniorAreaChair'] or reviewer['areaChair']:
+                num_excluded += 1
+                reviewer_scores[:,j] = -1e5
+            else:
+                num_included += 1
     print(f'Excluded {num_excluded} reviewers/chairs, leaving {num_included}', file=sys.stderr)
                 
     # Ensure that reviewer tracks match the paper track
@@ -249,8 +261,11 @@ if __name__ == "__main__":
             else:
                 raise ValueError(f'Submission {submission["startSubmissionId"]} has no track assigned')
 
-        if track_papers.keys() != track_reviewers.keys():
-            raise ValueError(f'Tracks mismatch between submissions and reviewers')
+        ptr = set(track_papers.keys())
+        ptr.add('Multidisciplinary and AC COI')
+        rtr = set(track_reviewers.keys())
+#        if track_papers.keys() != track_reviewers.keys():
+#            raise ValueError(f'Tracks mismatch between submissions and reviewers')
 
         # mask defines valid reviewer paper pairings
         mask = np.zeros_like(reviewer_scores)
@@ -262,7 +277,7 @@ if __name__ == "__main__":
                     mask[p,r] = 1
 
         reviewer_scores = np.where(mask == 1, reviewer_scores, -1e5)
-        print(f'Applying track constraints for {len(all_tracks)} tracks', file=sys.stderr)
+        print(f'Applying track constraints for {len(rtr)} tracks', file=sys.stderr)
 
     # FIXME: should we weight short papers separately to long papers in the review assignments?
     # E.g., assume 5 long papers = 7 short papers, or is this too painful
