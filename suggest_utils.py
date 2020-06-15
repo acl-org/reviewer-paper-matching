@@ -73,3 +73,4 @@ def print_progress(i, mod_size):
         sys.stderr.write('.')
         if int(i/mod_size) % 50 == 0:
             print(i, file=sys.stderr)
+        sys.stderr.flush()

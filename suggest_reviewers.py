@@ -78,7 +78,6 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
             weighting = np.reshape(1/np.array(range(1, k+1)), (k,1))
             scored_rdb.sort(axis=0)
             topk = scored_rdb[-k:,:]
-            # print(topk)
             agg[i] = (topk*weighting).sum(axis=0)
         else:
             raise ValueError(f'Unknown operator {operator}')
@@ -168,6 +167,17 @@ if __name__ == "__main__":
     with open(args.db_file, "r") as f:
         db = [json.loads(x) for x in f]  # for debug
         db_abs = [x['paperAbstract'] for x in db]
+    rdb = calc_reviewer_db_mapping(reviewer_data, db, author_col=args.filter_field, author_field='authors')
+    
+    # FIXME: about half of the above papers are bollocks -- quick hack to filter to those papers actually 
+    # authored by reviewers
+    includes_reviewer = rdb.sum(axis=1)
+    new_db = []
+    for i, paper in enumerate(db):
+        if includes_reviewer[i] >= 1:
+            new_db.append(paper)
+    db = new_db
+    db_abs = [x['paperAbstract'] for x in db]
     rdb = calc_reviewer_db_mapping(reviewer_data, db, author_col=args.filter_field, author_field='authors')
 
     # Calculate or load paper similarity matrix
