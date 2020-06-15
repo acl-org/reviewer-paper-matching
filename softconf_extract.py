@@ -38,7 +38,7 @@ if __name__ == "__main__":
         csv_lines = list(csv_reader)
     colnames = ['Username', 'Email', 'First Name', 'Last Name', 'Semantic Scholar ID', 'Roles']
     ucol, ecol, fcol, lcol, scol, rcol = find_colids(colnames, csv_lines[0])
-    # also check that they've agreed to review in the local profile questions
+    # also check that they've agreed to review in the local profile questions 
     Rcol, Ecol = find_colids(['PCRole', 'emergencyReviewer'], csv_lines[0])
     reviewers, reviewer_map, profile_map = [], {}, {}
     with open(args.reviewer_out, 'w') as f:
@@ -49,13 +49,17 @@ if __name__ == "__main__":
             profile_map[line[ucol]] = data
             profile_map[line[ecol]] = data
             if len(line) < Ecol+1:
-                line.extend([''] * (Ecol+1))
+                line.extend([''] * (Ecol+1)) # some lines are incomplete (due to softconf change to profile form)
 
             is_area_chair = 'Meta Reviewer' in line[rcol] 
             is_senior_area_chair = '(manager' in line[rcol]
-            is_programme_chair = 'committee:manager' in line[rcol]
-            is_reviewer = 'committee:' in line[rcol] and not is_senior_area_chair and not is_programme_chair
-            agreed_tscs = len(line) >= Ecol+1 and ('reviewer' in line[Rcol] or 'Yes' in line[Ecol])
+            is_programme_chair = line[rcol] == 'manager'
+            #is_reviewer = 'committee:' in line[rcol] and not is_senior_area_chair and not is_programme_chair
+            is_reviewer = line[rcol] != 'Author' and not line[rcol] == 'committee' and not is_senior_area_chair and not is_programme_chair and not is_area_chair
+            agreed_tscs = 'reviewer' in line[Rcol] or 'Yes' in line[Ecol]
+            if is_reviewer and not agreed_tscs:
+                print(f'WARNING: {line[ucol]} has not agreed to review or emergency review; role {line[rcol]}; agreed {line[Rcol]}')
+                agreed_tscs = True
 
             # check for not author, and not PC "manager:committee" and not SAC "committee:<track name> (manager #)"
             if is_reviewer and agreed_tscs or is_area_chair or is_senior_area_chair:
@@ -109,6 +113,7 @@ if __name__ == "__main__":
         
     # Write submissions
     delim_re = re.compile(r'(?:, | and )')
+    not_found = set()
     with open(args.submission_out, 'w') as f:
         for i, line in enumerate(csv_lines[1:]):
             #print(i,line)
@@ -132,7 +137,7 @@ if __name__ == "__main__":
                 else:
                     print(f'WARNING: could not find account for {ae}, just using name {an}; username is "{ai}"')
                     authors.append({'name': an, 'ids': []})
-    
+                    if ai: not_found.add(ai)
             track = line[rcol]
             assert track
 
