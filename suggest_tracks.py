@@ -111,6 +111,7 @@ if __name__ == "__main__":
         row = dict({'Submission ID': query['startSubmissionId'], 'Title': query['title'], 'Track': query['track']})
         for track, reviewers in reviewers_by_track.items():
             # find best reviewers, as mean similarity of top k reviewers in track
+            # FIXME: bug here, must of deleted some code for reviewer_id_map
             rids = [reviewer_id_map[id] for ids in reviewers for id in ids]
             rscores = scores[rids]
             tscore = np.mean(rscores.argsort()[-k:])

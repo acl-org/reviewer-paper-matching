@@ -50,7 +50,7 @@ if __name__ == "__main__":
     similarities = np.matmul(embeddings, np.transpose(embeddings))
     np.fill_diagonal(similarities, 0)
 
-    k = 9
+    k = 15
     tracks_by_submission = np.zeros(len(submissions), dtype=np.int32)
     for i, x in enumerate(submissions):
         tracks_by_submission[i] = tracks.index(x['track'])
@@ -70,6 +70,9 @@ if __name__ == "__main__":
 
         row = dict(x)
         row['suggested track'] = track
+        row['neighbour entropy'] = -np.sum(np.log(counts / k))
+        rows.append(row)
 
     results = pandas.DataFrame(rows)
+    results = results.reindex(columns=['startSubmissionId','title','paperAbstract','authors','type','track','suggested track','neighbour entropy'])
     results.to_csv(args.output_file, quoting=2)
