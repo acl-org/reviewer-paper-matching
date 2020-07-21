@@ -1,3 +1,11 @@
+"""
+Suggest reassignments of submissions to different tracks, based on the
+author-supplied track labels of the submission's k nearest neighbours. This is
+reliable for some tracks, less so for others. It is a good way to focus 
+attention in the reassignment step: consider carefully papers where the author
+supplied area does not match the kNN predicted area.
+"""
+
 import json
 from model_utils import Example, unk_string
 from sacremoses import MosesTokenizer

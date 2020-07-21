@@ -12,7 +12,7 @@ def calc_reviewer_id_mapping(reviewers, author_col):
             reviewer_id_map[reviewer].append(j)
     return reviewer_id_map
 
-def calc_reviewer_db_mapping(reviewers, db, author_col='name', author_field='authors', warn_under=1):
+def calc_reviewer_db_mapping(reviewers, db, author_field='authors', warn_under=1):
     """ Calculate correspondence between reviewers and papers
 
     :param reviewers: A list of reviewer names, or reviewer IDs
@@ -23,26 +23,40 @@ def calc_reviewer_db_mapping(reviewers, db, author_col='name', author_field='aut
     :return: an NP array with rows as reviewers, columns as entries in the DB
     """
     print(f'Calculating reviewer-paper mapping for {len(reviewers)} reviewers and {len(db)} papers', file=sys.stderr)
-    reviewer_id_map = calc_reviewer_id_mapping(reviewers, author_col)
+    reviewer_id_map_name = calc_reviewer_id_mapping(reviewers, 'name')
+    reviewer_id_map_id = calc_reviewer_id_mapping(reviewers, 'id')
+
     mapping = np.zeros( (len(db), len(reviewers)) )
     for i, entry in enumerate(db):
         for cols in entry[author_field]:
             js = []
+            author_col = 'id'
+            reviewer_id_map = reviewer_id_map_id
             if author_col in cols:
                 if cols[author_col] in reviewer_id_map:
                     js = reviewer_id_map[cols[author_col]]
             else:
-                js = []
                 for x in cols[author_col+'s']:
                     if x in reviewer_id_map:
                         js.extend(reviewer_id_map[x])
+
+            author_col = 'name'
+            reviewer_id_map = reviewer_id_map_name
+            if author_col in cols: 
+                if cols[author_col] in reviewer_id_map:
+                    js = reviewer_id_map[cols[author_col]]
+            else:
+                for x in cols[author_col+'s']:
+                    if x in reviewer_id_map:
+                        js.extend(reviewer_id_map[x])
+
             for j in js:
                 mapping[i,j] = 1
     num_papers = mapping.sum(axis=0)
-    for name, num in zip(reviewers, num_papers):
-        name = name['names'][0]
+    for rev, num in zip(reviewers, num_papers):
+        name = rev['names'][0]
         if num < warn_under:
-            print(f'WARNING: Reviewer {name} has {num} papers in the database', file=sys.stderr)
+            print(f'WARNING: Reviewer {name} ({rev["startUsername"]}) has {num} papers in the database', file=sys.stderr)
     return mapping
 
 def print_text_report(query, file):

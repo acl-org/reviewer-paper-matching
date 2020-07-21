@@ -56,7 +56,7 @@ if __name__ == "__main__":
             is_programme_chair = line[rcol] == 'manager'
             #is_reviewer = 'committee:' in line[rcol] and not is_senior_area_chair and not is_programme_chair
             is_reviewer = line[rcol] != 'Author' and not line[rcol] == 'committee' and not is_senior_area_chair and not is_programme_chair and not is_area_chair
-            agreed_tscs = 'reviewer' in line[Rcol] or 'Yes' in line[Ecol]
+            agreed_tscs = 'reviewer' in line[Rcol] or 'AC' in line[Rcol] or 'Yes' in line[Ecol]
             if is_reviewer and not agreed_tscs:
                 print(f'WARNING: {line[ucol]} has not agreed to review or emergency review; role {line[rcol]}; agreed {line[Rcol]}')
                 agreed_tscs = True
@@ -66,12 +66,15 @@ if __name__ == "__main__":
                 track = re.sub(r'committee:', '', line[rcol])
                 track = re.sub(r':?Meta Reviewer:?', '', track).strip()
                 track = re.sub(r'^:', '', track).strip()
+                # if track != 'Computational Social Science and Social Media':
+                #     continue
+
                 if is_senior_area_chair:
                     # sigh, some track names contain the separator symbol ':'
                     track = re.sub(r'(.+):\1 \(manager.*', r'\1', track)
                 rev_data = {'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id], 'startUsername': line[ucol],
-                            'areaChair': is_area_chair, 'emergency': ('Yes' in line[Ecol]), 'track': track,
-                            'seniorAreaChair': is_senior_area_chair}
+                            'areaChair': is_area_chair, 'emergency': ('Yes' in line[Ecol] and 'no' == line[Rcol]), 
+                            'track': track, 'seniorAreaChair': is_senior_area_chair}
                 print(json.dumps(rev_data), file=f)
                 reviewer_map[line[ucol]] = len(reviewers)
                 reviewer_map[line[ecol]] = len(reviewers)
@@ -84,7 +87,7 @@ if __name__ == "__main__":
     with open(args.submission_in, 'r') as f:
         csv_reader = csv.reader(f, delimiter=',')
         csv_lines = list(csv_reader)
-    colnames = ['Submission ID', 'Title', 'Track', 'Submission Type', 'Abstract|Summary', 'Authors', 'All Author Emails', 'Status']
+    colnames = ['Submission ID', 'Title', 'Track', 'Submission Type', 'Abstract|Summary', 'Authors', 'All Author Emails', 'Acceptance Status']
     scol, tcol, rcol, ycol, abscol, acol, ecol, stcol = find_colids(colnames, csv_lines[0])
     icols = find_colids([f'{i}: Username' for i in range(1, 99)], csv_lines[0])
     submissions = []
@@ -115,9 +118,9 @@ if __name__ == "__main__":
     # Write submissions
     delim_re = re.compile(r'(?:, | and )')
     not_found = set()
+    submission_kept = []
     with open(args.submission_out, 'w') as f:
         for i, line in enumerate(csv_lines[1:]):
-            if 'Reject' in line[stcol]: continue # skip past withdrawn papers & desk rejects
             #print(i,line)
             author_emails = line[ecol].split('; ')
             author_names = re.split(delim_re, line[acol])
@@ -151,11 +154,16 @@ if __name__ == "__main__":
             else:
                 raise ValueError(f'Illegal Submission Type {line[ycol]}')
 
-            data = {'title': line[tcol], 'track': track, 'type': typ, 'paperAbstract': line[abscol], 'authors': authors, 'startSubmissionId': line[scol]}
-            submissions.append(data)
-            #submission_map[line[scol]] = i
-            print(json.dumps(data), file=f)
+            if 'Reject' not in line[stcol]:
+                data = {'title': line[tcol], 'track': track, 'type': typ, 'paperAbstract': line[abscol], 
+                        'authors': authors, 'startSubmissionId': line[scol]}
+                submissions.append(data)
+                #submission_map[line[scol]] = i
+                print(json.dumps(data), file=f)
+                submission_kept.append(i)
 
     if args.bid_out:
+        # remove the bids for rejected submissions
+        bids = bids[submission_kept, :]
         with open(args.bid_out, 'wb') as f:
             np.save(f, bids)
