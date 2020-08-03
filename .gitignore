@@ -1,11 +1,6 @@
 STS
 acl19-simple
 
-s2/
-scratch/
-
 .idea
 
-output
-data
 __pycache__

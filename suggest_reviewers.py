@@ -6,6 +6,7 @@ from models import load_model
 import numpy as np
 import cvxpy as cp
 import sys, math
+import traceback
 
 from suggest_utils import calc_reviewer_db_mapping, print_text_report, print_progress
 
@@ -98,6 +99,7 @@ def create_suggested_assignment(reviewer_scores, reviewer_levels, reviews_per_pa
                          f' given a constraint of {reviews_per_paper} reviews per paper and'
                          f' a minimum of {min_papers_per_reviewer} reviews per reviewer')
     assignment = cp.Variable(shape=reviewer_scores.shape, boolean=True)
+    print(assignment, file=sys.stderr)
     maxrev_constraint = cp.sum(assignment, axis=0) <= max_papers_per_reviewer
     pap_constraint = cp.sum(assignment, axis=1) == reviews_per_paper
     constraints = [maxrev_constraint, pap_constraint]
@@ -111,13 +113,15 @@ def create_suggested_assignment(reviewer_scores, reviewer_levels, reviews_per_pa
         #at least one senior reviewer 
         levels=np.array(reviewer_levels)
         senior_reviewers =  assignment * np.vstack([np.where(levels == 4, 1, 0) for i in range(reviewer_scores.shape[1])])
-        senior_constraint1 = cp.sum(senior_reviewers, axis=1) >= 1
+        #senior_constraint1 = cp.sum(senior_reviewers, axis=1) >= 1
+        senior_constraint1 = cp.sum(senior_reviewers, axis=1) >= 0
         constraints.append(senior_constraint1)
 
 
     total_sim = cp.sum(cp.multiply(reviewer_scores, assignment))
     assign_prob = cp.Problem(cp.Maximize(total_sim), constraints)
     assign_prob.solve(solver=cp.GLPK_MI, verbose=True)
+    print(assignment.value, assign_prob.value, file=sys.stderr)
     return assignment.value, assign_prob.value
 
 if __name__ == "__main__":
@@ -134,6 +138,8 @@ if __name__ == "__main__":
     parser.add_argument("--filter_field", type=str, default="name", help="Which field to use as the reviewer ID (name/id)")
     parser.add_argument("--model_file", help="filename to load the pre-trained semantic similarity file.")
     parser.add_argument("--aggregator", type=str, default="weighted_top3", help="Aggregation type (max, weighted_topN where N is a number)")
+    parser.add_argument("--save_preprocess_embedding", help="A filename for where to save the save_preprocess_embedding")
+    parser.add_argument("--load_preprocess_embedding", help="A filename for where to save the load_preprocess_embedding")
     parser.add_argument("--save_paper_matrix", help="A filename for where to save the paper similarity matrix")
     parser.add_argument("--load_paper_matrix", help="A filename for where to load the cached paper similarity matrix")
     parser.add_argument("--save_aggregate_matrix", help="A filename for where to save the reviewer-paper aggregate matrix")
@@ -190,16 +196,18 @@ if __name__ == "__main__":
         if args.save_aggregate_matrix:
             np.save(args.save_aggregate_matrix, reviewer_scores)
 
+    max_papers_per_reviewer=args.max_papers_per_reviewer
+    print(reviewer_scores.shape)
     # Load and process COIs
-#    cois = np.where(np.load(args.bid_file) == 0, 1, 0) if args.bid_file else None
-    cois = np.load(args.bid_file)
+    #cois = np.where(np.load(args.bid_file) == 0, 1, 0) if args.bid_file else None
+    cois = np.load(args.bid_file) if args.bid_file else None
     if cois is not None:
         num_cois = np.sum(np.where(cois == 0, 1, 0))
         print(f'Applying {num_cois} COIs', file=sys.stderr)
 #        reviewer_scores = np.where(cois == 4, reviewer_scores, -1e5)
-#        print(len(reviewer_levels), cois.shape, reviewer_scores.shape)
+        print(len(reviewer_levels), cois.shape, reviewer_scores.shape)
         reviewer_scores = np.where(cois == 2, reviewer_scores, -1e5)
-    
+
     if args.metareviewers:
         metareviewers=np.load(args.metareviewers, allow_pickle=True)
         num_metareviewers=np.sum(metareviewers)
@@ -215,64 +223,73 @@ if __name__ == "__main__":
 
     # Calculate a reviewer assignment based on the constraints
     print('Calculating assignment of reviewers', file=sys.stderr)
-    assignment, assignment_score = create_suggested_assignment(reviewer_scores, reviewer_levels,
-                                             min_papers_per_reviewer=args.min_papers_per_reviewer,
-                                             max_papers_per_reviewer=max_papers_per_reviewer,
-                                             reviews_per_paper=args.reviews_per_paper, ac_assignment=args.ac_assignment)
+    assignment, assignment_score = create_suggested_assignment(reviewer_scores, reviewer_levels, min_papers_per_reviewer=args.min_papers_per_reviewer, max_papers_per_reviewer=max_papers_per_reviewer, reviews_per_paper=args.reviews_per_paper, ac_assignment=args.ac_assignment)
     print(f'Done calculating assignment, total score: {assignment_score}', file=sys.stderr)
-
+    print([reviewer_scores, reviewer_levels, args.ac_assignment], file=sys.stderr)
+    print(len(assignment), file=sys.stderr)
+    #sys.exit()
+    
     # Print out the results
+    ERROR_NUM=0
     with open(args.suggestion_file, 'w') as outf:
         with open(args.output_dir+'/top_15_similarity_'+args.track+'_'+args.date+'.txt','w') as ofile:
             for i, query in enumerate(submissions):
-                scores = mat[i]
-                best_idxs = scores.argsort()[-5:][::-1]
-                best_reviewers = reviewer_scores[i].argsort()[-5:][::-1]
-                top_15_reviewers = reviewer_scores[i].argsort()[-15:][::-1]
-                assigned_reviewers = assignment[i].argsort()[-args.reviews_per_paper:][::-1]
+                try:
+                    ret_dict = dict(query)
+                    scores = mat[i]
+                    best_idxs = scores.argsort()[-5:][::-1]
+                    best_reviewers = reviewer_scores[i].argsort()[-5:][::-1]
+                    top_15_reviewers = reviewer_scores[i].argsort()[-15:][::-1]
+                    assigned_reviewers = assignment[i].argsort()[-args.reviews_per_paper:][::-1]
 
-                ret_dict = dict(query)
-                ret_dict['similarPapers'] = [{'title': db[idx]['title'], 'paperAbstract': db[idx]['paperAbstract'], 'score': scores[idx]} for idx in best_idxs]
-                ret_dict['topSimReviewers'], ret_dict['assignedReviewers'] = [], []
-                ret_dict['top15SimReviewers'] = []
-                for idx in best_reviewers:
-                    next_dict = dict(reviewer_data[idx])
-                    next_dict['score'] = reviewer_scores[i][idx]
-                    ret_dict['topSimReviewers'].append(next_dict)
-                for idx in assigned_reviewers:
-                    next_dict = dict(reviewer_data[idx])
-                    next_dict['score'] = reviewer_scores[i][idx]
-                    ret_dict['assignedReviewers'].append(next_dict)
-                for idx in top_15_reviewers:
-                    next_dict = dict(reviewer_data[idx])
-                    next_dict['score'] = reviewer_scores[i][idx]
-                    ret_dict['top15SimReviewers'].append(next_dict)  
-                
-                s=ret_dict['startSubmissionId']+'\t'
-                s+=ret_dict['title']+'\t'
-                s+=', '.join([x['name'] for x in ret_dict['authors']])+'\t'
-                for r in ret_dict['top15SimReviewers']:
-                    s+=r['names'][0]+' ('+r['startUsername']+')\t'
-                ofile.write(s)
-                ofile.write('\n')
-
-                if args.output_type == 'json':
-                    print(json.dumps(ret_dict), file=outf)
-                elif args.output_type == 'text':
-                    print_text_report(ret_dict, file=outf)
-                elif args.output_type == 'softconf':
-                    s=ret_dict['startSubmissionId']+':'
-                    for r in ret_dict['assignedReviewers']:
-                        s+=r['startUsername']+':'
-                    print(s[:-1], file=outf)
-                elif args.output_type== 'ac_softconf':
-                    s=ret_dict['startSubmissionId']+'\t'
-                    for r in ret_dict['assignedReviewers']:
-                        s+=r['startUsername']+'\tY'
-                    print(s, file=outf)
+                    ret_dict['similarPapers'] = [{'title': db[idx]['title'], 'paperAbstract': db[idx]['paperAbstract'], 'score': scores[idx]} for idx in best_idxs]
+                    ret_dict['topSimReviewers'], ret_dict['assignedReviewers'] = [], []
+                    ret_dict['top15SimReviewers'] = []
+                    for idx in best_reviewers:
+                        next_dict = dict(reviewer_data[idx])
+                        next_dict['score'] = reviewer_scores[i][idx]
+                        ret_dict['topSimReviewers'].append(next_dict)
+                    for idx in assigned_reviewers:
+                        next_dict = dict(reviewer_data[idx])
+                        next_dict['score'] = reviewer_scores[i][idx]
+                        ret_dict['assignedReviewers'].append(next_dict)
+                    for idx in top_15_reviewers:
+                        next_dict = dict(reviewer_data[idx])
+                        next_dict['score'] = reviewer_scores[i][idx]
+                        ret_dict['top15SimReviewers'].append(next_dict)  
                     
-                else:
-                    raise ValueError(f'Illegal output_type {args.output_type}')
+                    s=ret_dict['startSubmissionId']+'\t'
+                    s+=ret_dict['title']+'\t'
+                    s+=', '.join([x['name'] for x in ret_dict['authors']])+'\t'
+                    for r in ret_dict['top15SimReviewers']:
+                        s+=r['names'][0]+' ('+r['startUsername']+')\t'
+                    ofile.write(s)
+                    ofile.write('\n')
 
+                    if args.output_type == 'json':
+                        print(json.dumps(ret_dict), file=outf)
+                    elif args.output_type == 'text':
+                        print_text_report(ret_dict, file=outf)
+                    elif args.output_type == 'softconf':
+                        s=ret_dict['startSubmissionId']+':'
+                        for r in ret_dict['assignedReviewers']:
+                            s+=r['startUsername']+':'
+                        print(s[:-1], file=outf)
+                    elif args.output_type== 'ac_softconf':
+                        s=ret_dict['startSubmissionId']+'\t'
+                        for r in ret_dict['assignedReviewers']:
+                            s+=r['startUsername']+'\tY'
+                        print(s, file=outf)
+                        
+                    else:
+                        raise ValueError(f'Illegal output_type {args.output_type}')
+                except Exception as e:
+                    print("error!, %d-th query: %s" % (i, query), file=sys.stderr)
+                    print(json.dumps(ret_dict), sys.stderr)
+                    print(e, file=sys.stderr)
+                    ERROR_NUM += 1 
+                    traceback.print_exc()
+                    
+    print("ERROR_NUM: %d, TOTAL: %d" % (ERROR_NUM, i), file=sys.stderr)
     print(f'Done creating suggestions, written to {args.suggestion_file}', file=sys.stderr)
 
