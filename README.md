@@ -164,5 +164,5 @@ that attempts to maximize the sum of the reviewer-paper similarity scores based 
 
 # Credits
 
-This code was written/designed by Graham Neubig, John Wieting, Arya McCarthy, and Amanda Stent.
+This code was written/designed by Graham Neubig, John Wieting, Arya McCarthy, Amanda Stent, Natalie Schluter, and Trevor Cohn.
 
