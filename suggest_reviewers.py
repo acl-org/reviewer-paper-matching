@@ -89,7 +89,18 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
     return agg
 
 
-def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers_per_reviewer=0, max_papers_per_reviewer=5, quotas=None):
+def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers_per_reviewer=0,
+                                max_papers_per_reviewer=5, quotas=None, anonymity_multiplier=1.0):
+    """Create a suggested reviewer assignment
+
+    :param reviewer_scores: The similarity scores used to assign reviewers
+    :param reviews_per_paper: Maximum number of reviews per paper
+    :param min_papers_per_reviewer: Minimum number of reviews per paper
+    :param max_papers_per_reviewer: Maximum number of papers per reviewer
+    :param quotas: Per-reviewer quota on the maximum number of papers
+    :param anonymity_multiplier: A multiplier in how many extra papers to assign (for anonymization purposes)
+    :return: An assignment of papers to reviewers, and a score indicating the quality of the assignment
+    """
     num_pap, num_rev = reviewer_scores.shape
     if num_rev*max_papers_per_reviewer < num_pap*reviews_per_paper:
         raise ValueError(f'There are not enough reviewers ({num_rev}) review all the papers ({num_pap})'
@@ -99,9 +110,11 @@ def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers
         raise ValueError(f'There are too many reviewers ({num_rev}) to review all the papers ({num_pap})'
                          f' given a constraint of {reviews_per_paper} reviews per paper and'
                          f' a minimum of {min_papers_per_reviewer} reviews per reviewer')
+    if anonymity_multiplier < 1.0:
+        raise ValueError(f'anonymity_multiplier must be >= 1.0')
     assignment = cp.Variable(shape=reviewer_scores.shape, boolean=True)
     if not quotas:
-        maxrev_constraint = cp.sum(assignment, axis=0) <= max_papers_per_reviewer
+        maxrev_constraint = cp.sum(assignment, axis=0) <= max_papers_per_reviewer*anonymity_multiplier
     else:
         max_papers = np.zeros((num_rev,), dtype=np.int32)
         max_papers[:] = max_papers_per_reviewer
@@ -109,19 +122,19 @@ def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers
             max_papers[j] = q
             if q > max_papers_per_reviewer:
                 print(f'WARNING setting max_papers to {q} exceeds default value of {max_papers_per_reviewer}')
-        maxrev_constraint = cp.sum(assignment, axis=0) <= max_papers
+        maxrev_constraint = cp.sum(assignment, axis=0) <= max_papers*anonymity_multiplier
         
-    pap_constraint = cp.sum(assignment, axis=1) == reviews_per_paper
+    pap_constraint = cp.sum(assignment, axis=1) == int(reviews_per_paper*anonymity_multiplier)
     constraints = [maxrev_constraint, pap_constraint]
     if min_papers_per_reviewer > 0:
         if not quotas:
-            minrev_constraint = cp.sum(assignment, axis=0) >= min_papers_per_reviewer
+            minrev_constraint = cp.sum(assignment, axis=0) >= min_papers_per_reviewer*anonymity_multiplier
         else:
             min_papers = np.zeros((num_rev,), dtype=np.int32)
             min_papers[:] = min_papers_per_reviewer
             for j, q in quotas.items():
                 min_papers[j] = min(min_papers_per_reviewer, q)
-            minrev_constraint = cp.sum(assignment, axis=0) >= min_papers
+            minrev_constraint = cp.sum(assignment, axis=0) >= min_papers*anonymity_multiplier
         constraints.append(minrev_constraint)
     total_sim = cp.sum(cp.multiply(reviewer_scores, assignment))
     assign_prob = cp.Problem(cp.Maximize(total_sim), constraints)
@@ -149,6 +162,10 @@ if __name__ == "__main__":
     parser.add_argument("--max_papers_per_reviewer", default=5, type=int, help="How many papers, maximum, to assign to each reviewer")
     parser.add_argument("--min_papers_per_reviewer", default=0, type=int, help="How many papers, minimum, to assign to each reviewer")
     parser.add_argument("--reviews_per_paper", default=3, type=int, help="How many reviews to assign to each paper")
+    parser.add_argument("--anonymity_multiplier", default=1.0, type=float,
+                            help="For anonymity purposes, it is possible to assign extra reviewers to papers and then "
+                                 "sub-sample these reviewers. Set to, for example, 2.0 to assign an initial review committee"
+                                 "twice the normal size, then sub-sample down to the desired size.")
     parser.add_argument("--output_type", default="json", type=str, help="What format of output to produce (json/text)")
 
     parser.add_argument("--quota_file", help="A CSV file listing reviewer usernames with their maximum number of papers")
@@ -235,13 +252,13 @@ if __name__ == "__main__":
     num_excluded = num_included = 0
     for j, reviewer in enumerate(reviewer_data):
         if args.area_chairs:
-            if not reviewer['areaChair']:
+            if not reviewer.get('areaChair', False):
                 num_excluded += 1
                 reviewer_scores[:,j] = -1e5
             else:
                 num_included += 1
         else:
-            if reviewer['seniorAreaChair'] or reviewer['areaChair']:
+            if reviewer.get('seniorAreaChair', False) or reviewer.get('areaChair', False):
                 num_excluded += 1
                 reviewer_scores[:,j] = -1e5
             else:
@@ -283,8 +300,19 @@ if __name__ == "__main__":
     # E.g., assume 5 long papers = 7 short papers, or is this too painful
 
     # Calculate a reviewer assignment based on the constraints
+    final_scores = reviewer_scores
+    if args.anonymity_multiplier != 1.0:
+        print('Calculating initial assignment of reviewers', file=sys.stderr)
+        final_scores, assignment_score = create_suggested_assignment(reviewer_scores,
+                                                                     min_papers_per_reviewer=args.min_papers_per_reviewer,
+                                                                     max_papers_per_reviewer=args.max_papers_per_reviewer,
+                                                                     reviews_per_paper=args.reviews_per_paper,
+                                                                     quotas=quotas,
+                                                                     anonymity_multiplier=args.anonymity_multiplier)
+        print(f'Done calculating initial assignment, total score: {assignment_score}', file=sys.stderr)
+        final_scores += np.random.random(final_scores.shape)*1e-4
     print('Calculating assignment of reviewers', file=sys.stderr)
-    assignment, assignment_score = create_suggested_assignment(reviewer_scores,
+    assignment, assignment_score = create_suggested_assignment(final_scores,
                                              min_papers_per_reviewer=args.min_papers_per_reviewer,
                                              max_papers_per_reviewer=args.max_papers_per_reviewer,
                                              reviews_per_paper=args.reviews_per_paper, quotas=quotas)

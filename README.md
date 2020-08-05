@@ -65,7 +65,7 @@ and "Author/Reviewer Profiles" saving them to `scratch/Submission_Information.cs
         --model_file=scratch/similarity-model.pt \
         --max_papers_per_reviewer=5 \
         --reviews_per_paper=3 \
-        | tee scratch/assignments.jsonl
+        --suggestion_file=scratch/assignments.jsonl
 
 You will then have assignments written to both the terminal and `scratch/assignments.jsonl`. You can modify
 `reviews_per_paper` and `max_papers_per_reviewer` to change the number of reviews assigned to each paper and max number
