@@ -12,7 +12,7 @@ def calc_reviewer_id_mapping(reviewers, author_col):
             reviewer_id_map[reviewer].append(j)
     return reviewer_id_map
 
-def calc_reviewer_db_mapping(reviewers, db, author_field='authors', warn_under=1):
+def calc_reviewer_db_mapping(reviewers, db, author_col='name', author_field='authors', warn_under=1):
     """ Calculate correspondence between reviewers and papers
 
     :param reviewers: A list of reviewer names, or reviewer IDs
