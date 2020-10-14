@@ -43,6 +43,7 @@ if __name__ == "__main__":
             r = requests.get(f'http://api.semanticscholar.org/v1/paper/{pid}')
         if r.status_code != 200:
             print(f'WARNING: Could not retrieve paper ID {pid}', file=sys.stderr)
+            print(r)
         else:
             pmap = r.json()
             pmap = {v: pmap[k] for (k, v) in paper_info.items()}

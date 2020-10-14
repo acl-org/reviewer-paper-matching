@@ -28,7 +28,15 @@ SCRATCH   ?= scratch
 S2RELEASE ?= 2020-05-27
 S2URL     := https://s3-us-west-2.amazonaws.com/ai2-s2-research-public/open-corpus
 
-PYTHON ?= python
+## training data
+## - either ACL anthology (${SCRATCH}/acl-anthology.json)
+## - or ACL anthology + additional papers of reviewers and authors
+
+TRAINDATA := ${SCRATCH}/acl-anthology.json
+# TRAINDATA := ${SCRATCH}/relevant-papers.json
+
+PYTHON  ?= python
+
 
 .PHONY: all
 all: ${SCRATCH}/assignments.txt
@@ -67,13 +75,12 @@ ${SCRATCH}/acl-anthology.json: s2
 
 
 
-
 ## prepare training data (tokenized paper abstracts)
 
 STS:
 	bash download_sts17.sh
 
-${SCRATCH}/abstracts.txt: ${SCRATCH}/acl-anthology.json STS
+${SCRATCH}/abstracts.txt: ${TRAINDATA} STS
 	${PYTHON} tokenize_abstracts.py --infile $< --outfile $@
 
 ${SCRATCH}/abstracts.20k.sp.txt: ${SCRATCH}/abstracts.txt
@@ -114,10 +121,19 @@ ${SCRATCH}/relevant-papers.ids: s2 ${SCRATCH}/cois.npy
 	${PYTHON} s2_query_paperids.py \
 		--reviewer_file ${SCRATCH}/reviewers.jsonl > $@
 
-${SCRATCH}/relevant-papers.json: ${SCRATCH}/relevant-papers.ids ${SCRATCH}/acl-anthology.json
-	${PYTHON} s2_query_papers.py \
-		--paperid_file $< \
-		--db_file ${word 2,$^} > $@
+${SCRATCH}/relevant-papers.json: ${SCRATCH}/relevant-papers.ids
+	zcat s2/s2-corpus-*.gz | \
+	perl s2_grep_papers.pl -i scratch/relevant-papers.ids -q 'aclweb\.org' \
+		> $@ 2> $(@:.json=.log)
+
+## problems with querying for papers: forbidden pages and timeouts 
+#
+# ${SCRATCH}/relevant-papers.json: ${SCRATCH}/relevant-papers.ids ${SCRATCH}/acl-anthology.json
+#	${PYTHON} s2_query_papers.py \
+#		--paperid_file $< \
+#		--db_file ${word 2,$^} > $@
+
+
 
 ## find best assignments
 
