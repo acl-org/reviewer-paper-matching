@@ -21,6 +21,11 @@
 #
 # for GPU jobs: adjust implict %.gpujob recipe
 # set walltime with HPC_TIME (format = hh::mm)
+#
+#
+# or run 3 different subsequent jobs:
+#
+#   make all-job
 #-------------------------------------------------------------------------
 
 
@@ -32,8 +37,8 @@ S2URL     := https://s3-us-west-2.amazonaws.com/ai2-s2-research-public/open-corp
 ## - either ACL anthology (${SCRATCH}/acl-anthology.json)
 ## - or ACL anthology + additional papers of reviewers and authors
 
-TRAINDATA := ${SCRATCH}/acl-anthology.json
-# TRAINDATA := ${SCRATCH}/relevant-papers.json
+# TRAINDATA := ${SCRATCH}/acl-anthology.json
+TRAINDATA := ${SCRATCH}/relevant-papers.json
 
 PYTHON  ?= python
 
@@ -52,6 +57,27 @@ train: ${SCRATCH}/similarity-model.pt
 
 .PHONY: assign
 assign: ${SCRATCH}/assignments.txt
+
+
+
+## submit a job in 3 steps
+##
+## (1) prepare data on CPU node
+## (2) train a model on GPU node
+## (3) assign reviewers on CPU node (with a bit more RAM)
+
+.PHONY: all-job
+all-job:
+	${MAKE} prepare-and-train-job.cpujob
+
+.PHONY: prepare-and-train-job
+prepare-and-train-job: prepare
+	${MAKE} train-and-assign-job.gpujob
+
+.PHONY: train-and-assign-job
+train-and-assign-job: train
+	${MAKE} HPC_MEM=16g assign.cpujob
+
 
 
 
