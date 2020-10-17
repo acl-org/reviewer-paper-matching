@@ -28,10 +28,10 @@
 #   make all-job
 #-------------------------------------------------------------------------
 
-
-SCRATCH   ?= scratch
-S2RELEASE ?= 2020-05-27
-S2URL     := https://s3-us-west-2.amazonaws.com/ai2-s2-research-public/open-corpus
+AREACHAIRS ?= eacl2021-area-chairs.txt
+SCRATCH    ?= scratch
+S2RELEASE  ?= 2020-05-27
+S2URL      := https://s3-us-west-2.amazonaws.com/ai2-s2-research-public/open-corpus
 
 ## training data
 ## - either ACL anthology (${SCRATCH}/acl-anthology.json)
@@ -56,8 +56,7 @@ prepare: ${SCRATCH}/abstracts.20k.sp.txt
 train: ${SCRATCH}/similarity-model.pt
 
 .PHONY: assign
-assign: ${SCRATCH}/assignments.txt
-
+assign: ${SCRATCH}/assignments.csv ${SCRATCH}/meta-assignments.csv
 
 
 ## submit a job in 3 steps
@@ -136,16 +135,23 @@ ${SCRATCH}/cois.npy: ${SCRATCH}/Profile_Information.csv ${SCRATCH}/Submission_In
 	${PYTHON} softconf_extract.py \
 		--profile_in=${word 1,$^} \
 		--submission_in=${word 2,$^} \
-		--reviewer_out=${SCRATCH}/reviewers.jsonl \
+		--reviewer_out=${SCRATCH}/all-reviewers.jsonl \
 		--submission_out=${SCRATCH}/submissions.jsonl \
 		--bid_out=$@ |\
 	tee $(@:.npy=.log)
 
+${SCRATCH}/all-reviewers.jsonl: ${SCRATCH}/cois.npy
+	@echo "done!"
+
+${SCRATCH}/submissions.jsonl: ${SCRATCH}/cois.npy
+	@echo "done!"
+
+
+
 ## query for papers by authors and reviewers
 
-${SCRATCH}/relevant-papers.ids: s2 ${SCRATCH}/cois.npy
-	${PYTHON} s2_query_paperids.py \
-		--reviewer_file ${SCRATCH}/reviewers.jsonl > $@
+${SCRATCH}/relevant-papers.ids: ${SCRATCH}/all-reviewers.jsonl s2
+	${PYTHON} s2_query_paperids.py --reviewer_file $< > $@
 
 ${SCRATCH}/relevant-papers.json: ${SCRATCH}/relevant-papers.ids
 	zcat s2/s2-corpus-*.gz | \
@@ -163,23 +169,54 @@ ${SCRATCH}/relevant-papers.json: ${SCRATCH}/relevant-papers.ids
 
 ## find best assignments
 
+${SCRATCH}/reviewers.jsonl: ${SCRATCH}/all-reviewers.jsonl ${AREACHAIRS}
+	perl grep_reviewers.pl -v -i ${AREACHAIRS} < $< > $@
+
+${SCRATCH}/meta-reviewers.jsonl: ${SCRATCH}/all-reviewers.jsonl ${AREACHAIRS}
+	perl grep_reviewers.pl -i ${AREACHAIRS} $< > $@
+
+
 ${SCRATCH}/assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
-				${SCRATCH}/similarity-model.pt \
-				${SCRATCH}/cois.npy
+				${SCRATCH}/submissions.jsonl \
+				${SCRATCH}/reviewers.jsonl \
+				${SCRATCH}/similarity-model.pt
 	${PYTHON} suggest_reviewers.py \
 		--db_file=$< \
-		--submission_file=${SCRATCH}/submissions.jsonl \
-		--reviewer_file=${SCRATCH}/reviewers.jsonl \
-		--model_file=${SCRATCH}/similarity-model.pt \
+		--submission_file=${word 2,$^} \
+		--reviewer_file=${word 3,$^} \
+		--model_file=${word 4,$^} \
 		--max_papers_per_reviewer=5 \
 		--reviews_per_paper=3 \
-		--suggestion_file=${SCRATCH}/assignments.jsonl | \
+		--suggestion_file=$@ | \
 	tee $(@:.jsonl=.log)
 
 ${SCRATCH}/assignments.txt: ${SCRATCH}/assignments.jsonl
-	python suggest_to_text.py < $< | tee $@
+	python suggest_to_text.py < $< > $@
+
+${SCRATCH}/assignments.csv: ${SCRATCH}/assignments.jsonl
+	${PYTHON} softconf_package.py --split_by_track --suggestion_file $< --softconf_file $@
 
 
+
+${SCRATCH}/meta-assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
+					${SCRATCH}/submissions.jsonl \
+					${SCRATCH}/meta-reviewers.jsonl \
+					${SCRATCH}/similarity-model.pt
+	${PYTHON} suggest_reviewers.py \
+		--db_file=$< \
+		--submission_file=${word 2,$^} \
+		--reviewer_file=${word 3,$^} \
+		--model_file=${word 4,$^} \
+		--max_papers_per_reviewer=10 \
+		--reviews_per_paper=1 \
+		--suggestion_file=$@ | \
+	tee $(@:.jsonl=.log)
+
+${SCRATCH}/meta-assignments.txt: ${SCRATCH}/meta-assignments.jsonl
+	python suggest_to_text.py < $< > $@
+
+${SCRATCH}/meta-assignments.csv: ${SCRATCH}/meta-assignments.jsonl
+	${PYTHON} softconf_package.py --split_by_track --suggestion_file $< --softconf_file $@
 
 
 #############################################

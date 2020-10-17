@@ -9,8 +9,7 @@
 use Getopt::Std;
 
 our %opts = ();
-
-getopt('q:i:', \%opts);
+getopt('qi', \%opts);
 
 my $idfile = $opts{i};
 my $query  = $opts{q};

@@ -2,6 +2,10 @@ import argparse
 import json
 from slugify import slugify
 
+import sys
+if sys.version_info[0] >= 3:
+    unicode = str
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
