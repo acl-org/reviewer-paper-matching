@@ -46,9 +46,6 @@ PYTHON  ?= python
 .PHONY: all
 all: ${SCRATCH}/assignments.txt
 
-.PHONY: data
-data: s2
-
 .PHONY: prepare
 prepare: ${SCRATCH}/abstracts.20k.sp.txt
 
@@ -56,9 +53,11 @@ prepare: ${SCRATCH}/abstracts.20k.sp.txt
 train: ${SCRATCH}/similarity-model.pt
 
 .PHONY: assign
-assign: ${SCRATCH}/assignments.csv ${SCRATCH}/meta-assignments.csv
+assign: ${SCRATCH}/assignments.csv ${SCRATCH}/meta-assignments.csv \
+	${SCRATCH}/assignments.txt ${SCRATCH}/meta-assignments.txt
 
 
+##-----------------------------------------------------------
 ## submit a job in 3 steps
 ##
 ## (1) prepare data on CPU node
@@ -76,6 +75,8 @@ prepare-and-train-job: prepare
 .PHONY: train-and-assign-job
 train-and-assign-job: train
 	${MAKE} HPC_MEM=16g assign.cpujob
+
+##-----------------------------------------------------------
 
 
 
@@ -131,34 +132,34 @@ ${SCRATCH}/similarity-model.pt: ${SCRATCH}/abstracts.20k.sp.txt
 
 ## convert CSV files into JSON
 
-${SCRATCH}/cois.npy: ${SCRATCH}/Profile_Information.csv ${SCRATCH}/Submission_Information.csv
+${SCRATCH}/submissions.jsonl: ${SCRATCH}/Profile_Information.csv ${SCRATCH}/Submission_Information.csv ${SCRATCH}/Bid_Information.csv
 	${PYTHON} softconf_extract.py \
 		--profile_in=${word 1,$^} \
 		--submission_in=${word 2,$^} \
+		--bid_in=${word 3,$^} \
 		--reviewer_out=${SCRATCH}/all-reviewers.jsonl \
-		--submission_out=${SCRATCH}/submissions.jsonl \
-		--bid_out=$@ |\
-	tee $(@:.npy=.log)
+		--bid_out=${SCRATCH}/cois.npy \
+		--submission_out=$@ |\
+	tee $(@:.jsonl=.log)
 
-${SCRATCH}/all-reviewers.jsonl: ${SCRATCH}/cois.npy
-	@echo "done!"
-
-${SCRATCH}/submissions.jsonl: ${SCRATCH}/cois.npy
-	@echo "done!"
-
+${SCRATCH}/all-reviewers.jsonl: ${SCRATCH}/Profile_Information.csv
+	${PYTHON} softconf_extract.py \
+		--profile_in=$< \
+		--reviewer_out=$@ |\
+	tee $(@:.jsonl=.log)
 
 
 ## query for papers by authors and reviewers
 
-${SCRATCH}/relevant-papers.ids: ${SCRATCH}/all-reviewers.jsonl s2
+${SCRATCH}/relevant-papers.ids: ${SCRATCH}/all-reviewers.jsonl
 	${PYTHON} s2_query_paperids.py --reviewer_file $< > $@
 
-${SCRATCH}/relevant-papers.json: ${SCRATCH}/relevant-papers.ids
+${SCRATCH}/relevant-papers.json: ${SCRATCH}/relevant-papers.ids s2
 	zcat s2/s2-corpus-*.gz | \
-	perl s2_grep_papers.pl -i scratch/relevant-papers.ids -q 'aclweb\.org' \
-		> $@ 2> $(@:.json=.log)
+	perl s2_grep_papers.pl -i $< -q 'aclweb\.org' > $@ 2> $(@:.json=.log)
 
-## problems with querying for papers: forbidden pages and timeouts 
+## problems with querying for papers: download limits and timeouts 
+## --> extract from s2 database instead (see above)
 #
 # ${SCRATCH}/relevant-papers.json: ${SCRATCH}/relevant-papers.ids ${SCRATCH}/acl-anthology.json
 #	${PYTHON} s2_query_papers.py \
@@ -185,8 +186,11 @@ ${SCRATCH}/assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
 		--submission_file=${word 2,$^} \
 		--reviewer_file=${word 3,$^} \
 		--model_file=${word 4,$^} \
+		--min_papers_per_reviewer=1 \
 		--max_papers_per_reviewer=5 \
 		--reviews_per_paper=3 \
+		--bid_file ${SCRATCH}/cois.npy \
+		--track \
 		--suggestion_file=$@ | \
 	tee $(@:.jsonl=.log)
 
@@ -207,8 +211,10 @@ ${SCRATCH}/meta-assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
 		--submission_file=${word 2,$^} \
 		--reviewer_file=${word 3,$^} \
 		--model_file=${word 4,$^} \
+		--min_papers_per_reviewer=3 \
 		--max_papers_per_reviewer=10 \
 		--reviews_per_paper=1 \
+		--track \
 		--suggestion_file=$@ | \
 	tee $(@:.jsonl=.log)
 
@@ -227,12 +233,12 @@ HPC_MEM       ?= 4g
 HPC_GPU_QUEUE ?= gpu
 HPC_CPU_QUEUE ?= small
 HPC_TIME      ?= 24:00
+GPU           ?= v100
 NR_GPUS       ?= 1
 
 ## for puhti @ CSC/Finland
 ifeq (${shell hostname --domain 2>/dev/null},bullx)
   HPC_ACCOUNT := project_2002688
-  GPU         := v100
   MODULES     := pytorch intel-mkl
 endif
 
