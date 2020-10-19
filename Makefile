@@ -28,10 +28,11 @@
 #   make all-job
 #-------------------------------------------------------------------------
 
-AREACHAIRS ?= eacl2021-area-chairs.txt
-SCRATCH    ?= scratch
-S2RELEASE  ?= 2020-05-27
-S2URL      := https://s3-us-west-2.amazonaws.com/ai2-s2-research-public/open-corpus
+AREACHAIRS   ?= eacl2021-area-chairs.txt
+COIREVIEWERS ?= eacl2021-coi-reviewers.txt
+SCRATCH      ?= scratch
+S2RELEASE    ?= 2020-05-27
+S2URL        := https://s3-us-west-2.amazonaws.com/ai2-s2-research-public/open-corpus
 
 ## training data
 ## - either ACL anthology (${SCRATCH}/acl-anthology.json)
@@ -40,7 +41,7 @@ S2URL      := https://s3-us-west-2.amazonaws.com/ai2-s2-research-public/open-cor
 # TRAINDATA := ${SCRATCH}/acl-anthology.json
 TRAINDATA := ${SCRATCH}/relevant-papers.json
 
-PYTHON  ?= python
+PYTHON  ?= python3
 
 
 .PHONY: all
@@ -52,10 +53,21 @@ prepare: ${SCRATCH}/abstracts.20k.sp.txt
 .PHONY: train
 train: ${SCRATCH}/similarity-model.pt
 
-.PHONY: assign
-assign: ${SCRATCH}/assignments.csv ${SCRATCH}/meta-assignments.csv \
-	${SCRATCH}/assignments.txt ${SCRATCH}/meta-assignments.txt
+.PHONY: assign assign assign-reviewers assign-meta-reviewers
+assign: ${SCRATCH}/assignments.csv ${SCRATCH}/assignments.txt \
+	${SCRATCH}/meta-assignments.csv ${SCRATCH}/meta-assignments.txt
+assign-reviewers: ${SCRATCH}/assignments.csv ${SCRATCH}/assignments.txt
+assign-meta-reviewers: ${SCRATCH}/meta-assignments.csv ${SCRATCH}/meta-assignments.txt
 
+## re-run assignments without re-training the model
+.PHONY: re-assign
+re-assign:
+	touch ${SCRATCH}/relevant-papers.ids
+	touch ${SCRATCH}/relevant-papers.json
+	touch ${SCRATCH}/abstracts.txt
+	touch ${SCRATCH}/abstracts.20k.sp.txt
+	touch ${SCRATCH}/similarity-model.pt
+	make assign
 
 ##-----------------------------------------------------------
 ## submit a job in 3 steps
@@ -74,7 +86,7 @@ prepare-and-train-job: prepare
 
 .PHONY: train-and-assign-job
 train-and-assign-job: train
-	${MAKE} HPC_MEM=16g assign.cpujob
+	${MAKE} HPC_MEM=16g assign-all.cpujob
 
 ##-----------------------------------------------------------
 
@@ -129,29 +141,72 @@ ${SCRATCH}/similarity-model.pt: ${SCRATCH}/abstracts.20k.sp.txt
 	tee scratch/training.log
 
 
+# get rid of ':' in track names (used as delimiter in profile information
+# get rid of desk-rejected and withdrawn papers (assigned to special track)
+
+${SCRATCH}/%-fixed.csv: ${SCRATCH}/%.csv
+	sed 	-e 's/Semantics: Lexical Semantics/Semantics - Lexical Semantics/' \
+		-e 's/Semantics: Sentence-level Semantics, Textual Inference and Other areas/Semantics - Sentence-level Semantics, Textual Inference and Other areas/' \
+		-e 's/Syntax: Tagging, Chunking, and Parsing/Syntax - Tagging, Chunking, and Parsing/' \
+	< $< > $@
+
 
 ## convert CSV files into JSON
+## - add bidding file from softconf? add:
+#		--bid_in=${word 3,$^} \
+## (not sure if that creates problems)
 
-${SCRATCH}/submissions.jsonl: ${SCRATCH}/Profile_Information.csv ${SCRATCH}/Submission_Information.csv ${SCRATCH}/Bid_Information.csv
+${SCRATCH}/submissions.jsonl: 	${SCRATCH}/Profile_Information-fixed.csv \
+				${SCRATCH}/Submission_Information-fixed.csv \
+				${SCRATCH}/Bid_Information-fixed.csv
 	${PYTHON} softconf_extract.py \
 		--profile_in=${word 1,$^} \
 		--submission_in=${word 2,$^} \
 		--bid_in=${word 3,$^} \
-		--reviewer_out=${SCRATCH}/all-reviewers.jsonl \
+		--reviewer_out=${SCRATCH}/reviewers.jsonl \
 		--bid_out=${SCRATCH}/cois.npy \
 		--submission_out=$@ |\
 	tee $(@:.jsonl=.log)
 
-${SCRATCH}/all-reviewers.jsonl: ${SCRATCH}/Profile_Information.csv
-	${PYTHON} softconf_extract.py \
-		--profile_in=$< \
-		--reviewer_out=$@ |\
+
+${SCRATCH}/submissions-test.jsonl: 	${SCRATCH}/Profile_Information-fixed.csv \
+				${SCRATCH}/Submission_Information-fixed.csv \
+				${SCRATCH}/Bid_Information-fixed.csv
+	${PYTHON} softconf_extract_test.py \
+		--profile_in=${word 1,$^} \
+		--submission_in=${word 2,$^} \
+		--bid_in=${word 3,$^} \
+		--reviewer_out=${SCRATCH}/reviewers-test.jsonl \
+		--bid_out=${SCRATCH}/cois-test.npy \
+		--submission_out=$@ |\
 	tee $(@:.jsonl=.log)
+
+
+
+
+
+
+${SCRATCH}/reviewers.jsonl: ${SCRATCH}/submissions.jsonl
+	@echo "done!"
+
+${SCRATCH}/cois.npy: ${SCRATCH}/submissions.jsonl
+	@echo "done!"
+
+
+## flag area chairs correctly
+## (somehow they Meta Reviewers are not properly marked))
+
+${SCRATCH}/reviewers-corrected.jsonl: ${SCRATCH}/reviewers.jsonl
+	perl flag_area_chairs.pl -i ${AREACHAIRS} < $< |\
+	perl add-coi-reviewers.pl -i ${COIREVIEWERS} > $@
+
+
+
 
 
 ## query for papers by authors and reviewers
 
-${SCRATCH}/relevant-papers.ids: ${SCRATCH}/all-reviewers.jsonl
+${SCRATCH}/relevant-papers.ids: ${SCRATCH}/reviewers.jsonl
 	${PYTHON} s2_query_paperids.py --reviewer_file $< > $@
 
 ${SCRATCH}/relevant-papers.json: ${SCRATCH}/relevant-papers.ids s2
@@ -169,57 +224,103 @@ ${SCRATCH}/relevant-papers.json: ${SCRATCH}/relevant-papers.ids s2
 
 
 ## find best assignments
+## - load/save aggregate matrix (if / not exists)
+## - load/save paper matrix (if / not if exists)
 
-${SCRATCH}/reviewers.jsonl: ${SCRATCH}/all-reviewers.jsonl ${AREACHAIRS}
-	perl grep_reviewers.pl -v -i ${AREACHAIRS} < $< > $@
+ifeq (${wildcard ${SCRATCH}/paper-matrix.npy},)
+  SUGGEST_REVIEWER_PARA += --save_paper_matrix ${SCRATCH}/paper-matrix.npy
+else
+  SUGGEST_REVIEWER_PARA += --load_paper_matrix ${SCRATCH}/paper-matrix.npy
+endif
 
-${SCRATCH}/meta-reviewers.jsonl: ${SCRATCH}/all-reviewers.jsonl ${AREACHAIRS}
-	perl grep_reviewers.pl -i ${AREACHAIRS} $< > $@
+ifeq (${wildcard ${SCRATCH}/reviewer-aggregate-matrix.npy},)
+  SUGGEST_REVIEWER_PARA += --save_aggregate_matrix ${SCRATCH}/reviewer-aggregate-matrix.npy
+else
+  SUGGEST_REVIEWER_PARA += --load_aggregate_matrix ${SCRATCH}/reviewer-aggregate-matrix.npy
+endif
 
 
 ${SCRATCH}/assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
+				${SCRATCH}/cois.npy \
 				${SCRATCH}/submissions.jsonl \
-				${SCRATCH}/reviewers.jsonl \
+				${SCRATCH}/reviewers-corrected.jsonl \
 				${SCRATCH}/similarity-model.pt
 	${PYTHON} suggest_reviewers.py \
 		--db_file=$< \
-		--submission_file=${word 2,$^} \
-		--reviewer_file=${word 3,$^} \
-		--model_file=${word 4,$^} \
+		--bid_file=${word 2,$^} \
+		--submission_file=${word 3,$^} \
+		--reviewer_file=${word 4,$^} \
+		--model_file=${word 5,$^} \
 		--min_papers_per_reviewer=1 \
 		--max_papers_per_reviewer=5 \
 		--reviews_per_paper=3 \
-		--bid_file ${SCRATCH}/cois.npy \
-		--track \
+		--track ${SUGGEST_REVIEWER_PARA} \
 		--suggestion_file=$@ | \
 	tee $(@:.jsonl=.log)
 
+#		--min_papers_per_reviewer=1 \
+
+
 ${SCRATCH}/assignments.txt: ${SCRATCH}/assignments.jsonl
-	python suggest_to_text.py < $< > $@
+	${PYTHON} suggest_to_text.py < $< > $@
 
 ${SCRATCH}/assignments.csv: ${SCRATCH}/assignments.jsonl
 	${PYTHON} softconf_package.py --split_by_track --suggestion_file $< --softconf_file $@
 
 
+## some statistics for assignments per track 
+
+check-assignments:
+	for f in `ls ${SCRATCH}/assignments.csv.*`; do \
+	  cut -f2 -d: $$f > $@.tmp1; \
+	  cut -f3 -d: $$f > $@.tmp2; \
+	  cut -f4 -d: $$f > $@.tmp3; \
+	  cat $@.tmp1 $@.tmp2 $@.tmp3 | sort | uniq -c | sort -nr > $$f.stats; \
+	  echo -n "number of reviewers in $$f: "; \
+	  cat $@.tmp1 $@.tmp2 $@.tmp3 | sort -u | wc -l; \
+	done
+
+
+
+
+
+
+
+## find assignments for meta-reviewers
+
+ifeq (${wildcard ${SCRATCH}/paper-matrix.npy},)
+  SUGGEST_META_PARA += --save_paper_matrix ${SCRATCH}/paper-matrix.npy
+else
+  SUGGEST_META_PARA += --load_paper_matrix ${SCRATCH}/paper-matrix.npy
+endif
+
+ifeq (${wildcard ${SCRATCH}/metareviewer-aggregate-matrix.npy},)
+  SUGGEST_META_PARA += --save_aggregate_matrix ${SCRATCH}/metareviewer-aggregate-matrix.npy
+else
+  SUGGEST_META_PARA += --load_aggregate_matrix ${SCRATCH}/metareviewer-aggregate-matrix.npy
+endif
 
 ${SCRATCH}/meta-assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
+					${SCRATCH}/cois.npy \
 					${SCRATCH}/submissions.jsonl \
-					${SCRATCH}/meta-reviewers.jsonl \
+					${SCRATCH}/reviewers-corrected.jsonl \
 					${SCRATCH}/similarity-model.pt
 	${PYTHON} suggest_reviewers.py \
 		--db_file=$< \
-		--submission_file=${word 2,$^} \
-		--reviewer_file=${word 3,$^} \
-		--model_file=${word 4,$^} \
-		--min_papers_per_reviewer=3 \
-		--max_papers_per_reviewer=10 \
+		--bid_file=${word 2,$^} \
+		--submission_file=${word 3,$^} \
+		--reviewer_file=${word 4,$^} \
+		--model_file=${word 5,$^} \
+		--max_papers_per_reviewer=15 \
 		--reviews_per_paper=1 \
-		--track \
+		--track --area_chairs ${SUGGEST_META_PARA} \
 		--suggestion_file=$@ | \
 	tee $(@:.jsonl=.log)
 
+#		--min_papers_per_reviewer=3 \
+
 ${SCRATCH}/meta-assignments.txt: ${SCRATCH}/meta-assignments.jsonl
-	python suggest_to_text.py < $< > $@
+	${PYTHON} suggest_to_text.py < $< > $@
 
 ${SCRATCH}/meta-assignments.csv: ${SCRATCH}/meta-assignments.jsonl
 	${PYTHON} softconf_package.py --split_by_track --suggestion_file $< --softconf_file $@

@@ -89,8 +89,9 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
     return agg
 
 
-def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers_per_reviewer=0, max_papers_per_reviewer=5, quotas=None):
-    num_pap, num_rev = reviewer_scores.shape
+def create_suggested_assignment(num_rev, reviewer_scores, reviews_per_paper=3, min_papers_per_reviewer=0, max_papers_per_reviewer=5, quotas=None):
+    # num_pap, num_rev = reviewer_scores.shape
+    num_pap, num_rev_old = reviewer_scores.shape
     if num_rev*max_papers_per_reviewer < num_pap*reviews_per_paper:
         raise ValueError(f'There are not enough reviewers ({num_rev}) review all the papers ({num_pap})'
                          f' given a constraint of {reviews_per_paper} reviews per paper and'
@@ -250,11 +251,17 @@ if __name__ == "__main__":
                 
     # Ensure that reviewer tracks match the paper track
     if args.track:
+        print("keep tracks per reviewer", file=sys.stderr)
         # index the papers and reviewers by track
         track_papers = defaultdict(list)
         track_reviewers = defaultdict(list)
         for j, reviewer in enumerate(reviewer_data):
-            track_reviewers[reviewer['track']].append(j)
+            # track_reviewers[reviewer['track']].append(j)
+            ## NEW: allow several tracks assigned to reviewers
+            ## CAVEAT: assume that track names do not include the delimiter char ':'
+            for t in reviewer['track'].split(':'):
+                # print("reviewer " + reviewer['startUsername'] + " in track " + t, file=sys.stderr)
+                track_reviewers[t].append(j)
         for i, submission in enumerate(submissions):
             if submission['track']:
                 track_papers[submission['track']].append(i)
@@ -284,7 +291,7 @@ if __name__ == "__main__":
 
     # Calculate a reviewer assignment based on the constraints
     print('Calculating assignment of reviewers', file=sys.stderr)
-    assignment, assignment_score = create_suggested_assignment(reviewer_scores,
+    assignment, assignment_score = create_suggested_assignment(num_included, reviewer_scores,
                                              min_papers_per_reviewer=args.min_papers_per_reviewer,
                                              max_papers_per_reviewer=args.max_papers_per_reviewer,
                                              reviews_per_paper=args.reviews_per_paper, quotas=quotas)

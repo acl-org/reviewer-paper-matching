@@ -56,6 +56,10 @@ if __name__ == "__main__":
             is_programme_chair = line[rcol] == 'manager'
             #is_reviewer = 'committee:' in line[rcol] and not is_senior_area_chair and not is_programme_chair
             is_reviewer = line[rcol] != 'Author' and not line[rcol] == 'committee' and not is_senior_area_chair and not is_programme_chair and not is_area_chair
+            #print(f'profile: {line[ucol]} - {line[rcol]} - {line[Rcol]}')
+            #is_reviewer = line[Rcol] == 'reviewer' or line[Rcol] == 'reviewerOrAC'
+            #if not is_reviewer:
+            #    print(f'not reviewer: {line[ucol]} - {line[rcol]} - {line[Rcol]}')
             agreed_tscs = 'reviewer' in line[Rcol] or 'AC' in line[Rcol] or 'Yes' in line[Ecol]
             if is_reviewer and not agreed_tscs:
                 print(f'WARNING: {line[ucol]} has not agreed to review or emergency review; role {line[rcol]}; agreed {line[Rcol]}')
@@ -113,8 +117,11 @@ if __name__ == "__main__":
                         # this code base uses 0 = COI, 1 = No, 2 = Maybe, 3 = Yes
                     else:
                         # this reviewer is an SAC or similar
-                        assert username in profile_map
-        
+                        try:
+                            assert username in profile_map
+                        except:
+                            print(f"assert problem for {username}")
+                            
     # Write submissions
     delim_re = re.compile(r'(?:, | and )')
     not_found = set()

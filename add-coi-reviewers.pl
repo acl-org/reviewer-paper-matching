@@ -3,14 +3,13 @@
 # grep for reviewers listed in a file
 #
 #  -i username-file ...... file of user names
-#  -v .................... reverse (print all names that are not listed)
 #
 
 use strict;
 use Getopt::Std;
 
-our ($opt_i, $opt_v);
-getopts('i:v');
+our ($opt_i);
+getopts('i:');
 
 my $idfile = $opt_i || die "need to specify a file with user names!\n";
 
@@ -25,10 +24,8 @@ close F;
 while (<>){
     if (/\"startUsername\"\s*\:\s*"(.*?)\"/){
 	if (exists $usernames{$1}){
-	    print unless ($opt_v);
-	}
-	elsif ($opt_v){
-	    print;
+	    s/(\"track\"\:\s*\")/${1}Multidisciplinary and AC COI:/;
 	}
     }
+    print;
 }
