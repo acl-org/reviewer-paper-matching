@@ -34,6 +34,11 @@ SCRATCH      ?= scratch
 S2RELEASE    ?= 2020-05-27
 S2URL        := https://s3-us-west-2.amazonaws.com/ai2-s2-research-public/open-corpus
 
+MAX_NR_REVIEWS     ?= 5
+MIN_NR_REVIEWS     ?= 1
+MAX_NR_METAREVIEWS ?= 15
+
+
 ## training data
 ## - either ACL anthology (${SCRATCH}/acl-anthology.json)
 ## - or ACL anthology + additional papers of reviewers and authors
@@ -251,8 +256,8 @@ ${SCRATCH}/assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
 		--submission_file=${word 3,$^} \
 		--reviewer_file=${word 4,$^} \
 		--model_file=${word 5,$^} \
-		--min_papers_per_reviewer=1 \
-		--max_papers_per_reviewer=5 \
+		--min_papers_per_reviewer=${MIN_NR_REVIEWS} \
+		--max_papers_per_reviewer=${MAX_NR_REVIEWS} \
 		--reviews_per_paper=3 \
 		--track ${SUGGEST_REVIEWER_PARA} \
 		--suggestion_file=$@ | \
@@ -311,7 +316,7 @@ ${SCRATCH}/meta-assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
 		--submission_file=${word 3,$^} \
 		--reviewer_file=${word 4,$^} \
 		--model_file=${word 5,$^} \
-		--max_papers_per_reviewer=15 \
+		--max_papers_per_reviewer=${MAX_NR_METAREVIEWS} \
 		--reviews_per_paper=1 \
 		--track --area_chairs ${SUGGEST_META_PARA} \
 		--suggestion_file=$@ | \
@@ -324,6 +329,8 @@ ${SCRATCH}/meta-assignments.txt: ${SCRATCH}/meta-assignments.jsonl
 
 ${SCRATCH}/meta-assignments.csv: ${SCRATCH}/meta-assignments.jsonl
 	${PYTHON} softconf_package.py --split_by_track --suggestion_file $< --softconf_file $@
+
+
 
 
 #############################################
