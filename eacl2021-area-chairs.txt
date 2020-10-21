@@ -1,151 +1,152 @@
-oren
-dirkh1981
-seirasto
-goldan55
-svitlana
-rjoty
-yufang
-sharidloaiciga
-mmesgar
-laylaelasri
-bakuzen
-plison
-benotti
-sd
-ravishekhar
-mondial93
-sstoyanchev
-julianhough
-araesh
-budzianowski
-chrizba
-jasondwilliams
-nmrksic
-leidner
-andrewyates
-soegaard
-markstevenson
-i.hendrickx
-jefferydalton
-tgr2uk
-claire.gardent
-sgehrmann
-wanxiaojun
-shashinarayan
-oku
-laura.perez
-k.markert
-huihuifan94
-jcheung
-feiliu
-dodgejesse
-dcard
-huihuifan94
-anna_gld
-blackbird
-s.verberne
-varepsilon
-gabripasi
-j.kiseleva
-julio.gonzalo
-shakery
-jingjiang
-adam_1
-j.kamps
-prosso
-stamatatos
-micalkang
-cornelia.caragea
-bernardi
-germank
-dieuwkehupkes
-alessandro.raganato
-beinborn
-asifiitpatna
-yvettegraham
-hwachsmuth
-irehbein
-apalmer
-odusek
-stede
-tberg
-icalixto
-douwe.kiela
-jeanoh
-rlevy
-emctucker
-antske
-cljacob2
-mgalle
-andreas.vlachos
-stratos
-carreras
-lei.yu
-juli41929
-philjohng
-reza.haffari
-carhaas
-edwinrobots
-zmarinho
-bastings
-inguna
-turchmo
-dgromann
-andrei.popescu-belis
-afraser
-federico
-maja.popovic
-atoral
-tetchegoyhen
-marco.guerini
-neveol
-esantus
-omria01
-ivulic
-sebastianruder
-gg42554
-frermann
-rada
-gneubig
-aanastas
-ijindal 
-gboleda
-pedrada
-manuandoscar
-acocos
-timvdc
-katrin_erk
-mfaruqui
-alexander.panchenko
-lonnekevdplas
-vered.shwartz
-mikelewis0
-wlam
-ns.moosavi
-danyaljj
-microth
-azpoliak
-swabha
-jbarnes
-steffen2
-orphee
-elef464
-benamara
-solorio
-serena.villata
-svkir
-zesch
-adinawilliams
-bjerva
-ivri
-ducadauge
-ckirov
-alumae
-earisoy
-njaygowda
-miguelballesteros
-jonaskuhn
-zeljko.agic
-jfoster
-frcchang
-ksagae
+dirkh1981	Computational Social Science and Social Media
+seirasto	Computational Social Science and Social Media
+goldan55	Computational Social Science and Social Media
+brenocon	Computational Social Science and Social Media
+svitlana	Computational Social Science and Social Media
+rjoty	Discourse and Pragmatics
+yufang	Discourse and Pragmatics
+sharidloaiciga	Discourse and Pragmatics
+mmesgar	Discourse and Pragmatics
+laylaelasri	Dialogue and Interactive Systems
+bakuzen	Dialogue and Interactive Systems
+plison	Dialogue and Interactive Systems
+benotti	Dialogue and Interactive Systems
+sd	Dialogue and Interactive Systems
+ravishekhar	Dialogue and Interactive Systems
+mondial93	Dialogue and Interactive Systems
+sstoyanchev	Dialogue and Interactive Systems
+julianhough	Dialogue and Interactive Systems
+araesh	Dialogue and Interactive Systems
+budzianowski	Dialogue and Interactive Systems
+chrizba	Dialogue and Interactive Systems
+jasondwilliams	Dialogue and Interactive Systems
+nmrksic	Dialogue and Interactive Systems
+leidner	Document analysis including Text Categorization and Topic Models
+andrewyates	Document analysis including Text Categorization and Topic Models
+soegaard	Document analysis including Text Categorization and Topic Models
+markstevenson	Document analysis including Text Categorization and Topic Models
+i.hendrickx	Document analysis including Text Categorization and Topic Models
+jefferydalton	Document analysis including Text Categorization and Topic Models
+tgr2uk	Document analysis including Text Categorization and Topic Models
+claire.gardent	Generation and Summarization
+sgehrmann	Generation and Summarization
+wanxiaojun	Generation and Summarization
+shashinarayan	Generation and Summarization
+oku	Generation and Summarization
+laura.perez	Generation and Summarization
+k.markert	Generation and Summarization
+huihuifan94	Generation and Summarization
+jcheung	Generation and Summarization
+feiliu	Generation and Summarization
+dodgejesse	Green and Sustainable NLP
+dcard	Green and Sustainable NLP
+huihuifan94	Green and Sustainable NLP
+blackbird	Green and Sustainable NLP
+s.verberne	Information Retrieval, Search and Question Answering
+varepsilon	Information Retrieval, Search and Question Answering
+gabripasi	Information Retrieval, Search and Question Answering
+j.kiseleva	Information Retrieval, Search and Question Answering
+julio.gonzalo	Information Retrieval, Search and Question Answering
+shakery	Information Retrieval, Search and Question Answering
+theodora.tsikrika	Information Retrieval, Search and Question Answering
+jingjiang	Information Extraction and Text Mining
+adam_1	Information Extraction and Text Mining
+j.kamps	Information Extraction and Text Mining
+prosso	Information Extraction and Text Mining
+stamatatos	Information Extraction and Text Mining
+micalkang	Information Extraction and Text Mining
+cornelia.caragea	Information Extraction and Text Mining
+bernardi	Interpretability and Analysis of Models for NLP
+germank	Interpretability and Analysis of Models for NLP
+dieuwkehupkes	Interpretability and Analysis of Models for NLP
+alessandro.raganato	Interpretability and Analysis of Models for NLP
+beinborn	Interpretability and Analysis of Models for NLP
+anna_gld	Interpretability and Analysis of Models for NLP
+asifiitpatna	Language Resources and Evaluation
+yvettegraham	Language Resources and Evaluation
+hwachsmuth	Language Resources and Evaluation
+irehbein	Language Resources and Evaluation
+apalmer	Language Resources and Evaluation
+odusek	Language Resources and Evaluation
+stede	Language Resources and Evaluation
+tberg	Language Resources and Evaluation
+icalixto	Language Grounding to Vision, Robotics and Beyond
+douwe.kiela	Language Grounding to Vision, Robotics and Beyond
+jeanoh	Language Grounding to Vision, Robotics and Beyond
+rlevy	Linguistic Theories, Cognitive Modeling and Psycholinguistics
+emctucker	Linguistic Theories, Cognitive Modeling and Psycholinguistics
+antske	Linguistic Theories, Cognitive Modeling and Psycholinguistics
+cljacob2	Linguistic Theories, Cognitive Modeling and Psycholinguistics
+mgalle	Machine Learning for NLP
+andreas.vlachos	Machine Learning for NLP
+stratos	Machine Learning for NLP
+carreras	Machine Learning for NLP
+lei.yu	Machine Learning for NLP
+juli41929	Machine Learning for NLP
+philjohng	Machine Learning for NLP
+reza.haffari	Machine Learning for NLP
+carhaas	Machine Learning for NLP
+edwinrobots	Machine Learning for NLP
+zmarinho	Machine Learning for NLP
+bastings	Machine Learning for NLP
+inguna	Machine Translation
+turchmo	Machine Translation
+dgromann	Machine Translation
+andrei.popescu-belis	Machine Translation
+afraser	Machine Translation
+federico	Machine Translation
+maja.popovic	Machine Translation
+atoral	Machine Translation
+tetchegoyhen	Machine Translation
+marco.guerini	Multidisciplinary and AC COI
+neveol	Multidisciplinary and AC COI
+esantus	Multidisciplinary and AC COI
+omria01	Multilinguality
+ivulic	Multilinguality
+sebastianruder	Multilinguality
+gg42554	Multilinguality
+frermann	Multilinguality
+rada	NLP Applications for Emergency Situations and Crisis Management
+gneubig	NLP Applications for Emergency Situations and Crisis Management
+aanastas	NLP Applications for Emergency Situations and Crisis Management
+ijindal	NLP Applications for Emergency Situations and Crisis Management
+gboleda	Semantics - Lexical Semantics
+pedrada	Semantics - Lexical Semantics
+manuandoscar	Semantics - Lexical Semantics
+acocos	Semantics - Lexical Semantics
+timvdc	Semantics - Lexical Semantics
+katrin_erk	Semantics - Lexical Semantics
+mfaruqui	Semantics - Lexical Semantics
+alexander.panchenko	Semantics - Lexical Semantics
+lonnekevdplas	Semantics - Lexical Semantics
+vered.shwartz	Semantics - Lexical Semantics
+mikelewis0	Semantics - Sentence-level Semantics, Textual Inference and Other areas
+wlam	Semantics - Sentence-level Semantics, Textual Inference and Other areas
+ns.moosavi	Semantics - Sentence-level Semantics, Textual Inference and Other areas
+danyaljj	Semantics - Sentence-level Semantics, Textual Inference and Other areas
+microth	Semantics - Sentence-level Semantics, Textual Inference and Other areas
+azpoliak	Semantics - Sentence-level Semantics, Textual Inference and Other areas
+swabha	Semantics - Sentence-level Semantics, Textual Inference and Other areas
+jbarnes	Sentiment Analysis, Stylistic Analysis, and Argument Mining
+steffen2	Sentiment Analysis, Stylistic Analysis, and Argument Mining
+orphee	Sentiment Analysis, Stylistic Analysis, and Argument Mining
+elef464	Sentiment Analysis, Stylistic Analysis, and Argument Mining
+benamara	Sentiment Analysis, Stylistic Analysis, and Argument Mining
+solorio	Sentiment Analysis, Stylistic Analysis, and Argument Mining
+serena.villata	Sentiment Analysis, Stylistic Analysis, and Argument Mining
+svkir	Sentiment Analysis, Stylistic Analysis, and Argument Mining
+zesch	Sentiment Analysis, Stylistic Analysis, and Argument Mining
+adinawilliams	Phonology, Morphology and Word Segmentation
+bjerva	Phonology, Morphology and Word Segmentation
+ivri	Phonology, Morphology and Word Segmentation
+ducadauge	Phonology, Morphology and Word Segmentation
+ckirov	Phonology, Morphology and Word Segmentation
+alumae	Speech
+earisoy	Speech
+njaygowda	Speech
+miguelballesteros	Syntax - Tagging, Chunking, and Parsing
+jonaskuhn	Syntax - Tagging, Chunking, and Parsing
+zeljko.agic	Syntax - Tagging, Chunking, and Parsing
+jfoster	Syntax - Tagging, Chunking, and Parsing
+frcchang	Syntax - Tagging, Chunking, and Parsing
+ksagae	Syntax - Tagging, Chunking, and Parsing

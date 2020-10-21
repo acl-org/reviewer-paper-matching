@@ -28,16 +28,22 @@
 #   make all-job
 #-------------------------------------------------------------------------
 
-AREACHAIRS   ?= eacl2021-area-chairs.txt
-COIREVIEWERS ?= eacl2021-coi-reviewers.txt
+
+PYTHON       ?= python3
+CONFERENCE   ?= eacl2021
 SCRATCH      ?= scratch
 S2RELEASE    ?= 2020-05-27
 S2URL        := https://s3-us-west-2.amazonaws.com/ai2-s2-research-public/open-corpus
 
+
+REVIEWS_PER_PAPER  ?= 3
 MAX_NR_REVIEWS     ?= 5
 MIN_NR_REVIEWS     ?= 1
+MIN_NR_METAREVIEWS ?= 1
 MAX_NR_METAREVIEWS ?= 15
 
+REVIEWER_ASSIGN_DIR = review-assignments/${REVIEWS_PER_PAPER}-reviews_max${MAX_NR_REVIEWS}_min${MIN_NR_REVIEWS}
+AC_ASSIGN_DIR       = ac-assignments/max${MAX_NR_METAREVIEWS}_min${MIN_NR_METAREVIEWS}
 
 ## training data
 ## - either ACL anthology (${SCRATCH}/acl-anthology.json)
@@ -45,12 +51,27 @@ MAX_NR_METAREVIEWS ?= 15
 
 # TRAINDATA := ${SCRATCH}/acl-anthology.json
 TRAINDATA := ${SCRATCH}/relevant-papers.json
+REVIEWERS := ${SCRATCH}/reviewers.jsonl
 
-PYTHON  ?= python3
 
 
-.PHONY: all
-all: ${SCRATCH}/assignments.txt
+## EACL-specific settings
+
+ifeq (${CONFERENCE},eacl2021)
+  REVIEWERS    := ${SCRATCH}/reviewers-corrected.jsonl
+  AREACHAIRS   := ${SCRATCH}/ac-corrected.jsonl
+  ACLIST       := eacl2021-area-chairs.txt
+  COIREVIEWERS := eacl2021-coi-reviewers.txt
+endif
+
+
+
+
+
+
+.PHONY: all assign assign assign-reviewers assign-ac
+all assign: 	${REVIEWER_ASSIGN_DIR}/assignments.csv ${REVIEWER_ASSIGN_DIR}/assignments.txt \
+		${AC_ASSIGN_DIR}/meta-assignments.csv ${AC_ASSIGN_DIR}/meta-assignments.txt
 
 .PHONY: prepare
 prepare: ${SCRATCH}/abstracts.20k.sp.txt
@@ -58,11 +79,10 @@ prepare: ${SCRATCH}/abstracts.20k.sp.txt
 .PHONY: train
 train: ${SCRATCH}/similarity-model.pt
 
-.PHONY: assign assign assign-reviewers assign-meta-reviewers
-assign: ${SCRATCH}/assignments.csv ${SCRATCH}/assignments.txt \
-	${SCRATCH}/meta-assignments.csv ${SCRATCH}/meta-assignments.txt
-assign-reviewers: ${SCRATCH}/assignments.csv ${SCRATCH}/assignments.txt
-assign-meta-reviewers: ${SCRATCH}/meta-assignments.csv ${SCRATCH}/meta-assignments.txt
+assign-reviewers: ${REVIEWER_ASSIGN_DIR}/assignments.csv ${REVIEWER_ASSIGN_DIR}/assignments.txt
+assign-ac: ${AC_ASSIGN_DIR}/meta-assignments.csv ${AC_ASSIGN_DIR}/meta-assignments.txt
+
+
 
 ## re-run assignments without re-training the model
 .PHONY: re-assign
@@ -105,7 +125,7 @@ ${SCRATCH}/s2/manifest.txt:
 	cd ${dir $@} && wget ${S2URL}/${S2RELEASE}/manifest.txt
 
 ${SCRATCH}/s2: ${SCRATCH}/s2/manifest.txt
-	cd ${dir $@} && wget -B ${S2URL}/${S2RELEASE}/ -i manifest.txt
+#	cd ${dir $@} && wget -B ${S2URL}/${S2RELEASE}/ -i manifest.txt
 
 s2: ${SCRATCH}/s2
 	-ln -s $< $@
@@ -174,23 +194,6 @@ ${SCRATCH}/submissions.jsonl: 	${SCRATCH}/Profile_Information-fixed.csv \
 	tee $(@:.jsonl=.log)
 
 
-${SCRATCH}/submissions-test.jsonl: 	${SCRATCH}/Profile_Information-fixed.csv \
-				${SCRATCH}/Submission_Information-fixed.csv \
-				${SCRATCH}/Bid_Information-fixed.csv
-	${PYTHON} softconf_extract_test.py \
-		--profile_in=${word 1,$^} \
-		--submission_in=${word 2,$^} \
-		--bid_in=${word 3,$^} \
-		--reviewer_out=${SCRATCH}/reviewers-test.jsonl \
-		--bid_out=${SCRATCH}/cois-test.npy \
-		--submission_out=$@ |\
-	tee $(@:.jsonl=.log)
-
-
-
-
-
-
 ${SCRATCH}/reviewers.jsonl: ${SCRATCH}/submissions.jsonl
 	@echo "done!"
 
@@ -198,11 +201,18 @@ ${SCRATCH}/cois.npy: ${SCRATCH}/submissions.jsonl
 	@echo "done!"
 
 
+## very EACL-specific fixes (do not use for other conferences)
+##
 ## flag area chairs correctly
-## (somehow they Meta Reviewers are not properly marked))
+## (somehow the Meta Reviewers are not properly marked in the EACL file)
+## also adds the reviewers for our COI track
 
 ${SCRATCH}/reviewers-corrected.jsonl: ${SCRATCH}/reviewers.jsonl
-	perl flag_area_chairs.pl -i ${AREACHAIRS} < $< |\
+	perl flag_area_chairs.pl -i ${ACLIST} < $< |\
+	perl add-coi-reviewers.pl -i ${COIREVIEWERS} > $@
+
+${SCRATCH}/ac-corrected.jsonl: ${SCRATCH}/reviewers.jsonl
+	perl flag_area_chairs.pl -t -i ${ACLIST} < $< |\
 	perl add-coi-reviewers.pl -i ${COIREVIEWERS} > $@
 
 
@@ -245,11 +255,12 @@ else
 endif
 
 
-${SCRATCH}/assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
+${REVIEWER_ASSIGN_DIR}/assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
 				${SCRATCH}/cois.npy \
 				${SCRATCH}/submissions.jsonl \
-				${SCRATCH}/reviewers-corrected.jsonl \
+				${REVIEWERS} \
 				${SCRATCH}/similarity-model.pt
+	mkdir -p ${dir $@}
 	${PYTHON} suggest_reviewers.py \
 		--db_file=$< \
 		--bid_file=${word 2,$^} \
@@ -258,77 +269,83 @@ ${SCRATCH}/assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
 		--model_file=${word 5,$^} \
 		--min_papers_per_reviewer=${MIN_NR_REVIEWS} \
 		--max_papers_per_reviewer=${MAX_NR_REVIEWS} \
-		--reviews_per_paper=3 \
+		--reviews_per_paper=${REVIEWS_PER_PAPER} \
 		--track ${SUGGEST_REVIEWER_PARA} \
 		--suggestion_file=$@ | \
 	tee $(@:.jsonl=.log)
 
-#		--min_papers_per_reviewer=1 \
 
 
-${SCRATCH}/assignments.txt: ${SCRATCH}/assignments.jsonl
+${REVIEWER_ASSIGN_DIR}/assignments.txt: ${REVIEWER_ASSIGN_DIR}/assignments.jsonl
 	${PYTHON} suggest_to_text.py < $< > $@
 
-${SCRATCH}/assignments.csv: ${SCRATCH}/assignments.jsonl
+${REVIEWER_ASSIGN_DIR}/assignments.csv: ${REVIEWER_ASSIGN_DIR}/assignments.jsonl
 	${PYTHON} softconf_package.py --split_by_track --suggestion_file $< --softconf_file $@
 
 
 ## some statistics for assignments per track 
 
 check-assignments:
-	for f in `ls ${SCRATCH}/assignments.csv.*`; do \
+	mkdir -p stats/${REVIEWER_ASSIGN_DIR}
+	for f in `ls ${REVIEWER_ASSIGN_DIR}/assignments.csv.*` ${REVIEWER_ASSIGN_DIR}/assignments.csv; do \
 	  cut -f2 -d: $$f > $@.tmp1; \
 	  cut -f3 -d: $$f > $@.tmp2; \
 	  cut -f4 -d: $$f > $@.tmp3; \
-	  cat $@.tmp1 $@.tmp2 $@.tmp3 | sort | uniq -c | sort -nr > $$f.stats; \
+	  cat $@.tmp1 $@.tmp2 $@.tmp3 | sort | uniq -c | sort -nr > stats/$$f; \
 	  echo -n "number of reviewers in $$f: "; \
 	  cat $@.tmp1 $@.tmp2 $@.tmp3 | sort -u | wc -l; \
 	done
 
-
-
-
+check-ac-assignments:
+	mkdir -p stats/${AC_ASSIGN_DIR}
+	for f in `ls ${AC_ASSIGN_DIR}/meta-assignments.csv.*` ${AC_ASSIGN_DIR}/meta-assignments.csv; do \
+	  cut -f2 -d: $$f | sort | uniq -c | sort -nr > stats/$$f; \
+	  echo -n "number of meta-reviewers in $$f: "; \
+	  cat stats/$$f | wc -l; \
+	done
 
 
 
 ## find assignments for meta-reviewers
 
-ifeq (${wildcard ${SCRATCH}/paper-matrix.npy},)
-  SUGGEST_META_PARA += --save_paper_matrix ${SCRATCH}/paper-matrix.npy
-else
-  SUGGEST_META_PARA += --load_paper_matrix ${SCRATCH}/paper-matrix.npy
-endif
-
-ifeq (${wildcard ${SCRATCH}/metareviewer-aggregate-matrix.npy},)
-  SUGGEST_META_PARA += --save_aggregate_matrix ${SCRATCH}/metareviewer-aggregate-matrix.npy
-else
-  SUGGEST_META_PARA += --load_aggregate_matrix ${SCRATCH}/metareviewer-aggregate-matrix.npy
-endif
-
-${SCRATCH}/meta-assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
+${AC_ASSIGN_DIR}/meta-assignments.jsonl: 	${SCRATCH}/relevant-papers.json \
 					${SCRATCH}/cois.npy \
 					${SCRATCH}/submissions.jsonl \
-					${SCRATCH}/reviewers-corrected.jsonl \
+					${AREACHAIRS} \
 					${SCRATCH}/similarity-model.pt
-	${PYTHON} suggest_reviewers.py \
-		--db_file=$< \
-		--bid_file=${word 2,$^} \
-		--submission_file=${word 3,$^} \
-		--reviewer_file=${word 4,$^} \
-		--model_file=${word 5,$^} \
-		--max_papers_per_reviewer=${MAX_NR_METAREVIEWS} \
+	mkdir -p ${dir $@}
+	${PYTHON} suggest_ac_reviewers_by_track.py \
+		--submission_file=${SCRATCH}/submissions.jsonl \
+		--db_file=${SCRATCH}/relevant-papers.json \
+		--reviewer_file=${AREACHAIRS} \
+		--model_file=${SCRATCH}/similarity-model.pt \
+		--max_papers_per_reviewer=15 \
 		--reviews_per_paper=1 \
-		--track --area_chairs ${SUGGEST_META_PARA} \
-		--suggestion_file=$@ | \
-	tee $(@:.jsonl=.log)
+		--suggestion_file=$@ \
+		--bid_file=${SCRATCH}/cois.npy \
+		--paper_matrix=${SCRATCH}/ac-paper-matrix.npy \
+		--aggregate_matrix=${SCRATCH}/ac-aggregate-matrix.npy  \
+		--min_papers_per_reviewer=1
 
-#		--min_papers_per_reviewer=3 \
+${AC_ASSIGN_DIR}/meta-assignments.csv: ${AC_ASSIGN_DIR}/meta-assignments.jsonl
+	${PYTHON} softconf_package.py --split_by_track --suggestion_file $< --softconf_file $@
 
-${SCRATCH}/meta-assignments.txt: ${SCRATCH}/meta-assignments.jsonl
+${AC_ASSIGN_DIR}/meta-assignments.txt: ${AC_ASSIGN_DIR}/meta-assignments.jsonl
 	${PYTHON} suggest_to_text.py < $< > $@
 
-${SCRATCH}/meta-assignments.csv: ${SCRATCH}/meta-assignments.jsonl
-	${PYTHON} softconf_package.py --split_by_track --suggestion_file $< --softconf_file $@
+
+
+
+
+### OLD quick script to check some misplaced track / role assignments
+
+wrong-tracks:
+	perl mismatched-tracks.pl \
+		scratch/wrong-profiles/reviewers-corrected.jsonl \
+		scratch/reviewers-corrected.jsonl | tr ":" "|" |\
+	sed 	-e 's/Semantics - Lexical Semantics/Semantics: Lexical Semantics/g' \
+		-e 's/Semantics - Sentence-level Semantics, Textual Inference and Other areas/Semantics: Sentence-level Semantics, Textual Inference and Other areas/g' \
+		-e 's/Syntax - Tagging, Chunking, and Parsing/Syntax: Tagging, Chunking, and Parsing/g' > $@
 
 
 

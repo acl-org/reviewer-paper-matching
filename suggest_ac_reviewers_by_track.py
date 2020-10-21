@@ -178,6 +178,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_type", default="json", type=str, help="What format of output to produce (json/text)")
 
     parser.add_argument("--quota_file", help="A CSV file listing reviewer usernames with their maximum number of papers")
+    parser.add_argument("--emnlp2020", action='store_true', help='activate EMNLP2020-specific things')
 
     args = parser.parse_args()
 
@@ -273,12 +274,13 @@ if __name__ == "__main__":
                 raise ValueError(f'Reviewer account {u} in quota file not found in reviewer database')
         print(f'Set {len(quotas)} reviewer quotas', file=sys.stderr)
 
-    to_move = pd.read_csv('/Users/tcohn/software/emnlp.20200628/Moving-to-COI-Track.csv', skipinitialspace=True, quotechar='"', encoding = "UTF-8")
-    to_move.fillna('', inplace=True)
-    for i, line in to_move.iterrows():
-        if line['Submission ID']: # skip blanks
-            submission = submission_index[str(int(line['Submission ID']))]
-            submission['track'] = line['Move To']
+    if args.emnlp2020:
+        to_move = pd.read_csv('/Users/tcohn/software/emnlp.20200628/Moving-to-COI-Track.csv', skipinitialspace=True, quotechar='"', encoding = "UTF-8")
+        to_move.fillna('', inplace=True)
+        for i, line in to_move.iterrows():
+            if line['Submission ID']: # skip blanks
+                submission = submission_index[str(int(line['Submission ID']))]
+                submission['track'] = line['Move To']
 
     # Ensure that reviewer tracks match the paper track
     # index the papers and reviewers by track
@@ -305,6 +307,9 @@ if __name__ == "__main__":
         ps = track_papers[track]
         rs = track_reviewers[track]
 
+        if len(rs) == 0:
+            print(f'WARNING: No reviewer in track {track}', file=sys.stderr)
+            continue
         av_load = len(ps) / len(rs) * args.reviews_per_paper
         #min_papers = min(args.min_papers_per_reviewer, int(av_load * 0.85))
         min_papers = int(av_load * 0.85)

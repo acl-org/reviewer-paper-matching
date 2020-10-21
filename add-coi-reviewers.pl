@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 #
-# grep for reviewers listed in a file
+# add the COI track for some reviewers
+# (Multidisciplinary and AC COI)
 #
 #  -i username-file ...... file of user names
 #
