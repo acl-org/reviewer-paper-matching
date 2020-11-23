@@ -77,9 +77,11 @@ of reviews per reviewer. After you've output the suggestions, you can also print
 **Step 4:** If you want to turn these into START format to re-enter them into START, you can run the following
 command:
 
-    python softconf_package.py < scratch/assignments.jsonl > scratch/start-assignments.csv
+    python softconf_package.py --suggestion_file scratch/assignments.jsonl --softconf_file scratch/start-assignments.csv
     
 then import `scratch/start-assignments.csv` into start using the data import interface.
+
+**NOTE:** This step also requires an additional dependency, you can install it via `pip install slugify`
 
 ### Evaluating Assignments (to test the model)
 
