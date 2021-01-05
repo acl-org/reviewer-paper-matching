@@ -1,6 +1,7 @@
 STS
 acl19-simple
 
+logs/
 s2/
 scratch/
 
@@ -9,3 +10,5 @@ scratch/
 output
 data
 __pycache__
+
+*.cmd
