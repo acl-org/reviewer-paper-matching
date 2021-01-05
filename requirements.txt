@@ -1,5 +1,6 @@
 numpy
 scipy
+pytorch
 sentencepiece
 sacremoses
 cvxpy
