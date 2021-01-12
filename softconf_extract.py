@@ -32,6 +32,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    csv.field_size_limit(sys.maxsize)
+
     # Process reviewers
     with open(args.profile_in, 'r') as f:
         csv_reader = csv.reader(f, delimiter=',')
@@ -40,17 +42,18 @@ if __name__ == "__main__":
     ucol, ecol, fcol, lcol, scol, rcol = find_colids(colnames, csv_lines[0])
     # also check that they've agreed to review in the local profile questions 
     Rcol, Ecol = find_colids(['PCRole', 'emergencyReviewer'], csv_lines[0])
+    last_field = max([ucol, ecol, fcol, lcol, scol, rcol, Rcol, Ecol])
     reviewers, reviewer_map, profile_map = [], {}, {}
     with open(args.reviewer_out, 'w') as f:
         for i, line in enumerate(csv_lines[1:]):
+            # Some lines are incomplete due to the rightward columns being blank
+            if len(line) < last_field + 1:
+                line.extend([''] * (last_field + 1 - len(line)))
             s2id = line[scol].split('/')[-1] # FIXME: is there better parsing of these from the other repository?
             # Author data
             data = {'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id], 'startUsername': line[ucol]}
             profile_map[line[ucol]] = data
             profile_map[line[ecol]] = data
-            if len(line) < Ecol+1:
-                line.extend([''] * (Ecol+1)) # some lines are incomplete (due to softconf change to profile form)
-
             is_area_chair = 'Meta Reviewer' in line[rcol] 
             is_senior_area_chair = '(manager' in line[rcol]
             is_programme_chair = line[rcol] == 'manager'
@@ -145,6 +148,11 @@ if __name__ == "__main__":
                     authors.append({'name': an, 'ids': []})
                     if ai: not_found.add(ai)
             track = line[rcol]
+            # BEGIN DELETE ME
+            # Temporary fix to add n/a track where missing during script testing
+            if not track:
+                track = "n/a"
+            # END DELETE ME
             assert track
 
             if 'short' in line[ycol].lower():
