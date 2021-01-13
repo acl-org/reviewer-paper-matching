@@ -52,7 +52,7 @@ GPU). Alternatively, you may contact the authors to get a model distributed to y
         --vocab-size 20000 \
         --model-name scratch/abstracts.sp.20k \
         --outfile scratch/abstracts.20k.sp.txt 
-    python -u reviewer-paper-matching/train_similarity.py
+    python -u reviewer-paper-matching/train_similarity.py \
         --data-file scratch/abstracts.20k.sp.txt \
         --model avg \
         --dim 1024 \
@@ -60,9 +60,9 @@ GPU). Alternatively, you may contact the authors to get a model distributed to y
         --ngrams 0 \
         --share-vocab 1 \
         --dropout 0.3 \
-        --batchsize 64
+        --batchsize 64 \
         --megabatch-size 1 \
-        --megabatch-anneal 10
+        --megabatch-anneal 10 \
         --seg-length 1 \
         --outfile scratch/similarity-model.pt \
         --sp-model scratch/abstracts.sp.20k.model 2>&1 | tee scratch/training.log
@@ -88,7 +88,7 @@ relationships between reviewers and submissions).
     python softconf_extract.py \
         --profile_in=scratch/Profile_Information.csv \
         --submission_in=scratch/Submission_Information.csv \
-        --bin_in=scratch/bids.csv
+        --bin_in=scratch/bids.csv \
         --reviewer_out=scratch/reviewers.jsonl \
         --submission_out=scratch/submissions.jsonl \
         --bid_out=scratch/cois.npy
