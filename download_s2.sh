@@ -5,8 +5,10 @@ split_num=$2
 
 wget -q https://s3-us-west-2.amazonaws.com/ai2-s2-research-public/open-corpus/${release}/manifest.txt
 
+manifest_file="manifest.txt"
+
 # Work out lines per file
-total_lines=$(wc -l manifest.txt)
+total_lines=$(wc -l <${manifest_file})
 ((lines_per_file = (total_lines + split_num - 1) / split_num))
 
 # Split the actual file, maintaining lines
