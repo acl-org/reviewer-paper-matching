@@ -7,6 +7,7 @@ import numpy as np
 import re
 import pandas
 
+
 def find_colids(colnames, header):
     '''Get the csv column index of each field in the colnames parameter'''
     colids, colmap = [-1 for _ in colnames], {}
@@ -19,6 +20,44 @@ def find_colids(colnames, header):
     if any([x == -1 for x in colids]):
         print(f'WARNING: Couldn\'t find column ids in {colnames} {colids}', file=sys.stderr)
     return colids
+
+
+def is_area_chair_from(role):
+    """ Computes if the role description corresponds to a area chair
+
+    Usually, ACs have 'Meta Reviewer" in their role description, e.g. "committee:Summarization:Meta Reviewer".
+    """
+    return 'Meta Reviewer' in role
+
+
+def is_senior_area_chair_from(role):
+    """ Computes if the role description corresponds to a senior area chair
+
+    SACs are discinguishable from everyone else via the "manager" suffix.
+    E.g. committee:Speech:Speech (manager 1)
+    """
+    return '(manager' in role
+
+
+def is_reviewer_from(role):
+    """ Computes if the role description corresponds to a reviewer
+
+    Before reviewer track assignment each reviewer has the role 'committee'
+    and after - most of the reviewers have new format: 'committee:TRACK'
+    where TRACK is the track name (note that track names may contain ':'-symbol).
+
+    Note that if you do not want to assign papers to the reviewers without track,
+    you can provide --track argument to the suggest_reviewers.py
+
+    DO NOT MODIFY THIS FUNCTION UNLESS YOU FULLY UNDERSTAND THIS REPOSITORY.
+    """
+    if role == 'committee':
+        return True
+    
+    if role.startswith('committee:') and not is_senior_area_chair_from(role) and not is_area_chair_from(role):
+        return True
+
+    return False
 
 if __name__ == "__main__":
 
@@ -42,17 +81,18 @@ if __name__ == "__main__":
     # Read-in reviewer and author profiles and process field IDs
     with open(args.profile_in, 'r') as f:
         csv_reader = csv.reader(f, delimiter=',')
-        csv_lines = list(csv_reader)
+        profiles_csv = list(csv_reader)
+
     colnames = ['Username', 'Email', 'First Name', 'Last Name', 'Semantic Scholar ID', 'Roles']
-    ucol, ecol, fcol, lcol, scol, rcol = find_colids(colnames, csv_lines[0])
+    ucol, ecol, fcol, lcol, scol, rcol = find_colids(colnames, profiles_csv[0])
     # Also check that they've agreed to review in the local profile questions 
-    Rcol, Ecol = find_colids(['PCRole', 'emergencyReviewer'], csv_lines[0])
+    Rcol, Ecol = find_colids(['PCRole', 'emergencyReviewer'], profiles_csv[0])
     last_field = max([ucol, ecol, fcol, lcol, scol, rcol, Rcol, Ecol])
     reviewers, reviewer_map, profile_map = [], {}, {}
 
     # Loop through reviewer and author profiles
     with open(args.reviewer_out, 'w') as f:
-        for i, line in enumerate(csv_lines[1:]):
+        for i, line in enumerate(profiles_csv[1:]):
             # Some lines are incomplete due to the rightward columns being blank
             if len(line) < last_field + 1:
                 line.extend([''] * (last_field + 1 - len(line)))
@@ -68,37 +108,33 @@ if __name__ == "__main__":
             profile_map[line[ecol]] = data
 
             # Check for special reviewer roles, and whether they have agreed to emergency review
-            is_area_chair = 'Meta Reviewer' in line[rcol] 
-            is_senior_area_chair = '(manager' in line[rcol]
-            is_programme_chair = line[rcol] == 'manager'
-            #is_reviewer = 'committee:' in line[rcol] and not is_senior_area_chair and not is_programme_chair
-            is_reviewer = (
-                line[rcol] != 'Author' and not line[rcol] == 'committee'
-                and not is_senior_area_chair and not is_programme_chair and not is_area_chair
-            )
+            _role = line[rcol]
+
+            is_area_chair = is_area_chair_from(_role)
+            is_senior_area_chair = is_senior_area_chair_from(_role)
+            is_programme_chair = _role == "manager:committee"
+            is_reviewer = is_reviewer_from(_role)
+
             agreed_tscs = 'reviewer' in line[Rcol] or 'AC' in line[Rcol] or 'Yes' in line[Ecol]
             if is_reviewer and not agreed_tscs:
-                print(f'WARNING: {line[ucol]} has not agreed to review or emergency review; role {line[rcol]}; agreed {line[Rcol]}')
+                print(f'WARNING: {line[ucol]} has not agreed to review or emergency review; role {_role}; agreed {line[Rcol]}')
+                # this line below does not make sense
                 agreed_tscs = True
 
             # Check for not author, and not PC "manager:committee" and not SAC 
             # "committee:<track name> (manager #)"
             # If conditions are met, append the reviewer data to the reviewer output file
             if is_reviewer and agreed_tscs or is_area_chair or is_senior_area_chair:
-                track = re.sub(r'committee:', '', line[rcol])
+                track = re.sub(r'committee:', '', _role)
                 track = re.sub(r':?Meta Reviewer:?', '', track).strip()
                 track = re.sub(r'^:', '', track).strip()
-                # if track != 'Computational Social Science and Social Media':
-                #     continue
-                if is_senior_area_chair:
-                    # sigh, some track names contain the separator symbol ':'
-                    track = re.sub(r'(.+):\1 \(manager.*', r'\1', track)
                 emergency = ('Yes' in line[Ecol] and 'no' == line[Rcol])
                 rev_data = {
                     'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id],
                     'startUsername': line[ucol], 'areaChair': is_area_chair, 'emergency': emergency, 
                     'track': track, 'seniorAreaChair': is_senior_area_chair
                 }
+
                 print(json.dumps(rev_data), file=f)
                 reviewer_map[line[ucol]] = len(reviewers)
                 reviewer_map[line[ecol]] = len(reviewers)
@@ -118,13 +154,13 @@ if __name__ == "__main__":
         raise RuntimeError(f'Submission input file not included')
     with open(args.submission_in, 'r') as f:
         csv_reader = csv.reader(f, delimiter=',')
-        csv_lines = list(csv_reader)
+        submissions_csv = list(csv_reader)
     colnames = [
         'Submission ID', 'Title', 'Track', 'Submission Type', 'Abstract|Summary', 'Authors',
         'All Author Emails', 'Acceptance Status'
     ]
-    scol, tcol, rcol, ycol, abscol, acol, ecol, stcol = find_colids(colnames, csv_lines[0])
-    icols = find_colids([f'{i}: Username' for i in range(1, 99)], csv_lines[0])
+    scol, tcol, rcol, ycol, abscol, acol, ecol, stcol = find_colids(colnames, submissions_csv[0])
+    icols = find_colids([f'{i}: Username' for i in range(1, 99)], submissions_csv[0])
     submissions, submission_map = [], {}
 
     # Load up SoftConf bids
@@ -137,18 +173,26 @@ if __name__ == "__main__":
     # ACL codebase codes:
     #     0 = COI, 1 = No, 2 = Maybe, 3 = Yes
     # The matrix is initialized with 2s ("Maybes")
-    bids = np.full( (len(csv_lines)-1, len(reviewers)), 2)
+    bids = np.full( (len(submissions_csv)-1, len(reviewers)), 2)
 
     # If there is a bid file from the COI module, load in the initializations
     if args.bid_in:
         bids_in = pandas.read_csv(
             args.bid_in, skipinitialspace=True, index_col=0
         )
+        if bids.shape[0] != bids_in.shape[0]:
+            raise RuntimeError("--bids_in should have the rows corresponding to the rows in the --submission_in")
+
         if bids_in.columns[-1].startswith("Unnamed:"):
             bids_in.drop(bids_in.columns[-1], axis=1, inplace=True)
         for i, (sid, sub_bids) in enumerate(bids_in.iterrows()):
             # process bids (even with no bidding, this still has COIs)
             for username, bidding_code in sub_bids.to_dict().items():
+
+                if isinstance(bidding_code, float) and bidding_code != bidding_code:
+                    print(f"NaN value found for username {username}")
+                    continue
+
                 if bidding_code in '1234':
                     reviewer_id = reviewer_map.get(username)
                     if reviewer_id != None:
@@ -165,10 +209,11 @@ if __name__ == "__main__":
     not_found = set()
     submission_kept = []
     with open(args.submission_out, 'w') as f:
-        for i, line in enumerate(csv_lines[1:]):
+        for i, line in enumerate(submissions_csv[1:]):
             author_emails = line[ecol].split('; ')
             author_names = re.split(delim_re, line[acol])
             author_startids = [line[icols[j]] for j in range(len(author_emails))]
+
             authors = []
             # Loop over author profiles to make sure any reviewers among the authors do not get
             # assigned to their own submission

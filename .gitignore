@@ -3,6 +3,7 @@ acl19-simple
 
 s2/
 scratch/
+venv/
 
 .idea
 .DS_Store
@@ -10,3 +11,5 @@ scratch/
 output
 data
 __pycache__
+
+reviewer-coi-detection
