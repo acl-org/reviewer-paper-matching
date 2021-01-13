@@ -189,7 +189,7 @@ if __name__ == "__main__":
     with open(args.db_file, "r") as f:
         db = [json.loads(x) for x in f]  # for debug
         db_abs = [x['paperAbstract'] for x in db]
-    rdb = calc_reviewer_db_mapping(reviewer_data, db, author_col=args.filter_field, author_field='authors')
+    rdb = calc_reviewer_db_mapping(reviewer_data, db, author_field='authors')
     
     # FIXME: about half of the above papers are bollocks -- quick hack to filter to those papers actually 
     # authored by reviewers
@@ -200,7 +200,7 @@ if __name__ == "__main__":
             new_db.append(paper)
     db = new_db
     db_abs = [x['paperAbstract'] for x in db]
-    rdb = calc_reviewer_db_mapping(reviewer_data, db, author_col=args.filter_field, author_field='authors')
+    rdb = calc_reviewer_db_mapping(reviewer_data, db, author_field='authors')
 
     # Calculate or load paper similarity matrix
     if args.load_paper_matrix:

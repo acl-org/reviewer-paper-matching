@@ -5,6 +5,7 @@ s2/
 scratch/
 
 .idea
+.DS_Store
 
 output
 data
