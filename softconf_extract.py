@@ -198,9 +198,6 @@ if __name__ == "__main__":
                     if reviewer_id != None:
                         # Change bid codes from softconf convention to ACL convention
                         bids[i, reviewer_id] = 4 - int(bidding_code)
-                    else:
-                        # this reviewer is an SAC or similar
-                        assert username in profile_map
         
     # Loop over submissions to filter out rejected and invalid entries and write valid ones to the
     # output file. If an author email or id matches that of a reviewer, the bid code for that
