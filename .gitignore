@@ -1,14 +1,12 @@
 STS
 acl19-simple
 
-logs/
 s2/
 scratch/
 
 .idea
+.DS_Store
 
 output
 data
 __pycache__
-
-*.cmd
