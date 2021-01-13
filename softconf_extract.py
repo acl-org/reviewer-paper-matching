@@ -142,7 +142,7 @@ if __name__ == "__main__":
     # If there is a bid file from the COI module, load in the initializations
     if args.bid_in:
         bids_in = pandas.read_csv(
-            args.bid_in, skipinitialspace=True, index_col='Submission ID/Username'
+            args.bid_in, skipinitialspace=True, index_col=0
         )
         if bids_in.columns[-1].startswith("Unnamed:"):
             bids_in.drop(bids_in.columns[-1], axis=1, inplace=True)
