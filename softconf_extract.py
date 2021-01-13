@@ -187,6 +187,7 @@ if __name__ == "__main__":
                     print(f'WARNING: could not find account for {ae}, just using name {an}; username is "{ai}"')
                     authors.append({'name': an, 'ids': []})
                     if ai: not_found.add(ai)
+            
             track = line[rcol]
             # BEGIN DELETE ME
             # Temporary fix to add n/a track where missing during script testing
@@ -194,6 +195,7 @@ if __name__ == "__main__":
                 track = "n/a"
             # END DELETE ME
             assert track
+            
             # Read in the submission type to either short or long, raising a value error if a
             # submission is of an invalid type
             if 'short' in line[ycol].lower():
