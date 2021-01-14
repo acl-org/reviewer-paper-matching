@@ -6,13 +6,20 @@ It is based on paper matching between abstracts of submitted papers and a databa
 
 ## Usage Instructions
 
-### Installing and Training Model (before review process)
+### Part 1: Installing and Training Model (before review process)
 
-**Step 1:** install requirements:
+#### Step 0: download the github repo to your local machine, saved it to a local directory.
+   Every step after that is done from that local directory.
+
+#### Step 1:install requirements:
 
     pip install -r reviewer-paper-matching/requirements.txt
     
-**Step 2 (Option A):** Download the semantic scholar dump
+#### Step 2: get ACL authology abstracts from semantic scholar.
+
+There are two options. Choose Option B if you are short of diskspace.
+
+**(Option A):** Download the semantic scholar dump
 [following the instructions](https://api.semanticscholar.org/corpus/download/). Note that the dump
 takes up about 150 GB of disk space, so Option B is recommended if your available diskspace is any
 more constrained than this.
@@ -30,7 +37,7 @@ link to aclweb.org, a rough approximation of the papers in the ACL Anthology.
 
     zcat s2/s2-corpus*.gz | grep aclweb.org > scratch/acl-anthology.json
 
-**Step 2 (Option B):** Find the numeric date associated with the Semantic Scholar release you want
+**(Option B):** Find the numeric date associated with the Semantic Scholar release you want
 (e.g. 2021-01-01), and use the `download_s2.sh` script to iteratively download a chunk of the
 release and filter the ACL entries into `acl-anthology.json`. Once all ACL entries have been added
 to the anthology file, the s2 chunk will be deleted from disk. This script will automatically create
@@ -40,18 +47,25 @@ disk capacity):
 
     ./reviewer-paper-matching/download_s2.sh 2021-01-01 10
 
-**Step 3:** Train a model of semantic similarity based on the ACL anthology (this step requires
+#### Step 3: Train a model of semantic similarity based on the ACL anthology (this step requires
 GPU). Alternatively, you may contact the authors to get a model distributed to you.
 
+**(3a):** ????
     bash reviewer-paper-matching/download_sts17.sh
+    
+**(3b):**: tokenize ACL anthology abstracts:    
     python reviewer-paper-matching/tokenize_abstracts.py \
         --infile scratch/acl-anthology.json \
         --outfile scratch/abstracts.txt
+ 
+**(3c):**: create a model file for tokenization and retokenize ACL anthology abstracts:
     python reviewer-paper-matching/sentencepiece_abstracts.py \
         --infile scratch/abstracts.txt \
         --vocab-size 20000 \
         --model-name scratch/abstracts.sp.20k \
         --outfile scratch/abstracts.20k.sp.txt 
+        
+**(3d):**: create a similarity model:
     python -u reviewer-paper-matching/train_similarity.py \
         --data-file scratch/abstracts.20k.sp.txt \
         --model avg \
@@ -67,11 +81,18 @@ GPU). Alternatively, you may contact the authors to get a model distributed to y
         --outfile scratch/similarity-model.pt \
         --sp-model scratch/abstracts.sp.20k.model 2>&1 | tee scratch/training.log
 
-### Creating Assignments (during review process)
+  Is the similarity between words? Or are we creating word embedding?
+  
+  
+### Part 2: Creating Assignments (during review process)
 
-**Step 1:** In START, go to the Spreadsheet Maker and download CSV spreadsheets for
+#### Step 1: Create csv files from softconf.
+
+In START, go to the Spreadsheet Maker and download CSV spreadsheets for
 "Author/Reviewer Profiles" and "Submissions", saving them to `scratch/Profile_Information.csv` and
 `scratch/Submission_Information.csv`. 
+
+**(1a) create scatch/Profile_Information.csv from softconf:
 
 In the Spreadsheet Maker, the necessary fields to download for "Author/Reviewer Profiles" are
 `Username`, `Email`, `First Name`, `Last Name`, `Semantic Scholar ID`, `Roles`, `PCRole`, and 
@@ -79,11 +100,34 @@ In the Spreadsheet Maker, the necessary fields to download for "Author/Reviewer 
 as input, and require the additional fields `Previous Affiliations`, `Affiliation Type`,
 `COIs Entered on Global Profile`, `Backup Email`, and `Year of Graduation`.
 
-**Step 2 (optional):** If the COI-detection system is being used, it should be run at this point. It
-will produce an augmented bids csv file that can be input to Step 3. (The bids file indicates COI
-relationships between reviewers and submissions).
+**(1b) create scratch/Submission_Information.csv from softconf:
 
-**Step 3:** Process these files into the jsonl and npy format used by this software:
+
+
+#### Step 2 (optional): create scratch/bids.csv that stores COI info:
+
+
+The file bids.csv indicates COI
+relationships (as a matrix) between reviewers (columns) and submissions (rows).
+
+To generate this file, we can use softconf and/or an external COI-detection system, 
+resulting in three options:
+(i) run step 2a only, (ii) run step 2b only, and (iii) run Step 2a first and then Step 2b (which takes the output of 2a as input).
+
+We recommend the third option.
+
+**(2a) get scratch/start_bid.csv from softonf:
+
+In the Spreadsheet Maker, ....
+
+**(2b) Run the external COI-detection system to create scratch/bids.csv.
+
+Contact ACL for the github site for the COI-detection system. The code will use scratch/start_bid.csv from Step 2a and add more COIs.
+The output of this system is scratch/bids.csv. If Step 2a is not run first, this system will give a warning.
+
+
+
+#### Step 3: Process the files from Step 1-2 into the jsonl and npy format, which are used in Step 4:
 
     python softconf_extract.py \
         --profile_in=scratch/Profile_Information.csv \
@@ -93,11 +137,14 @@ relationships between reviewers and submissions).
         --submission_out=scratch/submissions.jsonl \
         --bid_out=scratch/cois.npy
 
-The `bid_in` argument can come either from the output of the COI-detection codebase, or directly
-from START. START automatically detects some COIs, which the COI-detection scripts augment. However,
-this argument can also be dropped, in which case no COIs will be initialized.
+The first three arguments are input files (created in Step 1 and 2), and the last three
+arguments are output files. This step processes the input files (e.g., use RegEx to clean some data)
+and save the results to jsonl and numpy files, 
 
-**Step 3:** Create and save the reviewer assignments:
+The `bid_in` argument (if provided) comes from Step 2. If this argument is not provided, no COIs will be initialized.
+
+
+#### Step 4: Create and save the reviewer assignments:
 
     python suggest_reviewers.py \
         --submission_file=scratch/submissions.jsonl \
@@ -116,7 +163,8 @@ running:
 
     python suggest_to_text.py < scratch/assignments.jsonl | tee scratch/assignments.txt
     
-**Step 4:** If you want to turn these into START format to re-enter them into START, you can run the
+    
+#### Step 5: If you want to turn these into START format to re-enter them into START, you can run the
 following command:
 
     python softconf_package.py \
