@@ -167,7 +167,6 @@ if __name__ == "__main__":
                                  "sub-sample these reviewers. Set to, for example, 2.0 to assign an initial review committee"
                                  "twice the normal size, then sub-sample down to the desired size.")
     parser.add_argument("--output_type", default="json", type=str, help="What format of output to produce (json/text)")
-
     parser.add_argument("--quota_file", help="A CSV file listing reviewer usernames with their maximum number of papers")
     parser.add_argument("--track", action='store_true', help="Ensure reviewers and papers match in terms of track")
     parser.add_argument("--area_chairs", action='store_true', help="Assign papers to area chairs (default is reviewers); ensure min/max_papers_per_reviewer are set accordingly")
