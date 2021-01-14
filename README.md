@@ -51,14 +51,17 @@ disk capacity):
 GPU). Alternatively, you may contact the authors to get a model distributed to you.
 
 **(3a):** ????
+
     bash reviewer-paper-matching/download_sts17.sh
     
 **(3b):**: tokenize ACL anthology abstracts:    
+
     python reviewer-paper-matching/tokenize_abstracts.py \
         --infile scratch/acl-anthology.json \
         --outfile scratch/abstracts.txt
  
 **(3c):**: create a model file for tokenization and retokenize ACL anthology abstracts:
+
     python reviewer-paper-matching/sentencepiece_abstracts.py \
         --infile scratch/abstracts.txt \
         --vocab-size 20000 \
@@ -66,6 +69,7 @@ GPU). Alternatively, you may contact the authors to get a model distributed to y
         --outfile scratch/abstracts.20k.sp.txt 
         
 **(3d):**: create a similarity model:
+
     python -u reviewer-paper-matching/train_similarity.py \
         --data-file scratch/abstracts.20k.sp.txt \
         --model avg \
@@ -92,7 +96,7 @@ In START, go to the Spreadsheet Maker and download CSV spreadsheets for
 "Author/Reviewer Profiles" and "Submissions", saving them to `scratch/Profile_Information.csv` and
 `scratch/Submission_Information.csv`. 
 
-**(1a) create scatch/Profile_Information.csv from softconf:
+**(1a)** create scatch/Profile_Information.csv from softconf:
 
 In the Spreadsheet Maker, the necessary fields to download for "Author/Reviewer Profiles" are
 `Username`, `Email`, `First Name`, `Last Name`, `Semantic Scholar ID`, `Roles`, `PCRole`, and 
@@ -100,7 +104,7 @@ In the Spreadsheet Maker, the necessary fields to download for "Author/Reviewer 
 as input, and require the additional fields `Previous Affiliations`, `Affiliation Type`,
 `COIs Entered on Global Profile`, `Backup Email`, and `Year of Graduation`.
 
-**(1b) create scratch/Submission_Information.csv from softconf:
+**(1b)** create scratch/Submission_Information.csv from softconf:
 
 
 
@@ -116,11 +120,11 @@ resulting in three options:
 
 We recommend the third option.
 
-**(2a) get scratch/start_bid.csv from softonf:
+**(2a)** get scratch/start_bid.csv from softonf:
 
 In the Spreadsheet Maker, ....
 
-**(2b) Run the external COI-detection system to create scratch/bids.csv.
+**(2b)** Run the external COI-detection system to create scratch/bids.csv.
 
 Contact ACL for the github site for the COI-detection system. The code will use scratch/start_bid.csv from Step 2a and add more COIs.
 The output of this system is scratch/bids.csv. If Step 2a is not run first, this system will give a warning.
@@ -144,27 +148,39 @@ and save the results to jsonl and numpy files,
 The `bid_in` argument (if provided) comes from Step 2. If this argument is not provided, no COIs will be initialized.
 
 
-#### Step 4: Create and save the reviewer assignments:
+#### Step 4: Create and save the reviewer assignments to scratch/assignments.jsonl:
 
     python suggest_reviewers.py \
-        --submission_file=scratch/submissions.jsonl \
         --db_file=scratch/acl-anthology.json \
-        --reviewer_file=scratch/reviewers.jsonl \
         --model_file=scratch/similarity-model.pt \
+        --submission_file=scratch/submissions.jsonl \
+        --reviewer_file=scratch/reviewers.jsonl \
+        --bid_in cois.npy
         --max_papers_per_reviewer=5 \
         --reviews_per_paper=3 \
         --suggestion_file=scratch/assignments.jsonl
 
-You will then have assignments written to both the terminal and `scratch/assignments.jsonl`. You can
-modify `reviews_per_paper` and `max_papers_per_reviewer` to change the number of reviews assigned to
-each paper and max number of reviews per reviewer. After you've output the suggestions, you can also
+The first two arguments come from the training stage (see Part 1). The next three arguments come from Step 3.
+
+You can modify `reviews_per_paper` and `max_papers_per_reviewer` to change the number of reviews assigned to
+each paper and max number of reviews per reviewer. 
+
+Other options:  (what options we should include)
+ * individual quota (When we download anthor/reviewer profile, select QuotaForReview). \
+ * meta-reviewer: assign papers to meta-reviewer
+ * track: assign papers only to reviewers in the track
+
+You will then have assignments written to both the terminal (?) and `scratch/assignments.jsonl`.
+After you've output the suggestions, you can also
 print them (and save them to a file `scratch/assignments.txt`) in an easier-to-read format by
 running:
 
     python suggest_to_text.py < scratch/assignments.jsonl | tee scratch/assignments.txt
     
     
-#### Step 5: If you want to turn these into START format to re-enter them into START, you can run the
+#### Step 5: convert the assignment jsonl file to csv file to be uploaded to softconf:
+
+If you want to turn these into START format to re-enter them into START, you can run the
 following command:
 
     python softconf_package.py \
@@ -176,7 +192,9 @@ then import `scratch/start-assignments.csv` into start using the data import int
 **NOTE:** This step also requires an additional dependency, you can install it via
 `pip install slugify`
 
-### Evaluating Assignments (to test the model)
+
+
+### Part 3 (optional): Evaluating Assignments (to test the model)
 
 **Step 1:** In order to evaluate the system, you will need either (a) a conference with
 gold-standard bids, or (b) some other way to create information about bids automatically.
@@ -211,6 +229,8 @@ submissions, and columns correspond to the bids of potential reviewers (0=COI, 1
 
 This will tell you the ratio of assignments that were made to each bid, where in general a higher
 ratio of "3"s is better.
+
+
 
 ## Method Description
 
