@@ -1,5 +1,8 @@
 """
 This is a variant of the suggest_reviewers script tailored for assignment of papers to area chairs.
+It suggests AC reviewers and allows to manually move papers to special COI track (if the ACs suggest that) via providing --moving_to.
+
+I.e., this script is first ran without --moving_to, and later, if the track assignment needs correciton, it is ran again with --moving_to.
 
 It was run as follows for EMNLP 2020:
 
@@ -15,7 +18,8 @@ It was run as follows for EMNLP 2020:
         --paper_matrix=$dir/ac-paper_matrix.npy \
         --aggregate_matrix=$dir/ac-agg_matrix.npy  \
         --quota_file $dir/ac_quotas.csv \
-        --min_papers_per_reviewer=10 
+        --min_papers_per_reviewer=10 \
+
 
 The suggestions file can be converted to SOFTCONF format using
 
@@ -176,6 +180,9 @@ if __name__ == "__main__":
     parser.add_argument("--min_papers_per_reviewer", default=10, type=int, help="How many papers, minimum, to assign to each reviewer")
     parser.add_argument("--reviews_per_paper", default=1, type=int, help="How many reviews to assign to each paper")
     parser.add_argument("--output_type", default="json", type=str, help="What format of output to produce (json/text)")
+    parser.add_argument("--moving_to", default=None, type=str,
+        help="A csv file containing assignments to special COI track. File header: Submission ID,Move To,COI with COI SAC,R1,R2,R3"
+    )
 
     parser.add_argument("--quota_file", help="A CSV file listing reviewer usernames with their maximum number of papers")
 
@@ -273,12 +280,13 @@ if __name__ == "__main__":
                 raise ValueError(f'Reviewer account {u} in quota file not found in reviewer database')
         print(f'Set {len(quotas)} reviewer quotas', file=sys.stderr)
 
-    to_move = pd.read_csv('/Users/tcohn/software/emnlp.20200628/Moving-to-COI-Track.csv', skipinitialspace=True, quotechar='"', encoding = "UTF-8")
-    to_move.fillna('', inplace=True)
-    for i, line in to_move.iterrows():
-        if line['Submission ID']: # skip blanks
-            submission = submission_index[str(int(line['Submission ID']))]
-            submission['track'] = line['Move To']
+    if args.moving_to:
+        to_move = pd.read_csv(args.moving_to, skipinitialspace=True, quotechar='"', encoding = "UTF-8")
+        to_move.fillna('', inplace=True)
+        for i, line in to_move.iterrows():
+            if line['Submission ID']: # skip blanks
+                submission = submission_index[str(int(line['Submission ID']))]
+                submission['track'] = line['Move To']
 
     # Ensure that reviewer tracks match the paper track
     # index the papers and reviewers by track
@@ -353,4 +361,3 @@ if __name__ == "__main__":
                 raise ValueError(f'Illegal output_type {args.output_type}')
 
     print(f'Done creating suggestions, written to {args.suggestion_file}', file=sys.stderr)
-

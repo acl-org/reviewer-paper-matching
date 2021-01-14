@@ -9,3 +9,13 @@ scratch/
 output
 data
 __pycache__
+
+
+
+naacl_review_matching_files/
+venv/
+
+reviewer-coi-detection
+
+softconf_extract_temp.py
+

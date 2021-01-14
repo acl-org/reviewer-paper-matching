@@ -5,3 +5,4 @@ sacremoses
 cvxpy
 cvxopt
 requests
+python-slugify
