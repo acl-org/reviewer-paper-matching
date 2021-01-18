@@ -143,6 +143,7 @@ def create_suggested_assignment(reviewer_scores, reviews_per_paper=3, min_papers
 
 if __name__ == "__main__":
 
+    ####### Part 1: read in the arguments:
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--submission_file", type=str, required=True, help="A line-by-line JSON file of submissions")
@@ -174,7 +175,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Load the data
+    ############## Part 2: Load the data and calculate similarity between submissions and reviewers
     with open(args.submission_file, "r") as f:
         submissions = [json.loads(x) for x in f]
         submission_abs = [x['paperAbstract'] for x in submissions]
@@ -224,14 +225,17 @@ if __name__ == "__main__":
         if args.save_aggregate_matrix:
             np.save(args.save_aggregate_matrix, reviewer_scores)
 
-    # Load and process COIs
+    ########## Part 3: Adjust reviewer_scores based on COI, AC role, and track; add quota constraints
+  
+    #### Part 3(a): Adjust reviewer_scores #1: based on COIs
     cois = np.where(np.load(args.bid_file) == 0, 1, 0) if args.bid_file else None
     if cois is not None:
         num_cois = np.sum(cois)
         print(f'Applying {num_cois} COIs', file=sys.stderr)
         reviewer_scores = np.where(cois == 0, reviewer_scores, -1e5)
 
-    # Load reviewer specific quotas
+        
+    #### Part 3(b): Load reviewer specific quotas; use quotas as constraints to the CP problem:
     quotas = {}
     if args.quota_file:
         username_to_idx = dict([(r['startUsername'], j) for j, r in enumerate(reviewer_data)])
@@ -247,24 +251,35 @@ if __name__ == "__main__":
                 raise ValueError(f'Reviewer account {u} in quota file not found in reviewer database')
         print(f'Set {len(quotas)} reviewer quotas', file=sys.stderr)
 
-    # Ensure ACs are excluded from assignment, unless --area_chairs option specified
+    ###### Part 3(c): Adjust reviewer_scores #2: based on ACs
+    #### If --area_chairs is specified, only ACs get papers.
+    #### If it is not specified, SACs and ACs should not get papers (i.e., the reviewer_score is -1e5)
+    ### (Ensure ACs are excluded from assignment, unless --area_chairs option specified)
+    
     num_excluded = num_included = 0
     for j, reviewer in enumerate(reviewer_data):
         if args.area_chairs:
+            ### only ACs will get paper assignments:
             if not reviewer.get('areaChair', False):
+                ## the reviewer is not AC
                 num_excluded += 1
                 reviewer_scores[:,j] = -1e5
             else:
+                ## the reviewer is an AC:
                 num_included += 1
         else:
+            ### SACs and ACs will not get assignments
             if reviewer.get('seniorAreaChair', False) or reviewer.get('areaChair', False):
+                ## the reviewer is an SAC or AC
                 num_excluded += 1
                 reviewer_scores[:,j] = -1e5
             else:
+                ## the reviewer is a reviewer
                 num_included += 1
+                
     print(f'Excluded {num_excluded} reviewers/chairs, leaving {num_included}', file=sys.stderr)
                 
-    # Ensure that reviewer tracks match the paper track
+    #### Part 3(d): Adjust reviewer_scores #3: based on track. Ensure that reviewer tracks match the paper track
     if args.track:
         # index the papers and reviewers by track
         track_papers = defaultdict(list)
@@ -284,22 +299,25 @@ if __name__ == "__main__":
 #            raise ValueError(f'Tracks mismatch between submissions and reviewers')
 
         # mask defines valid reviewer paper pairings
-        mask = np.zeros_like(reviewer_scores)
+        # mask[p,r]=1 means that paper p and reviewer r are in the same track.                 
+        mask = np.zeros_like(reviewer_scores) 
         for track in track_papers.keys():
             ps = track_papers[track]
             rs = track_reviewers[track]
             for p in ps:
                 for r in rs:
                     mask[p,r] = 1
-
+                                 
+        ## if the paper and the reviewers are not in the same track, the reviewer_score is -1e5
         reviewer_scores = np.where(mask == 1, reviewer_scores, -1e5)
         print(f'Applying track constraints for {len(rtr)} tracks', file=sys.stderr)
 
     # FIXME: should we weight short papers separately to long papers in the review assignments?
     # E.g., assume 5 long papers = 7 short papers, or is this too painful
 
-    # Calculate a reviewer assignment based on the constraints
+    ######## Part 4: Calculate a reviewer assignment based on the constraints
     final_scores = reviewer_scores
+                                 
     if args.anonymity_multiplier != 1.0:
         print('Calculating initial assignment of reviewers', file=sys.stderr)
         final_scores, assignment_score = create_suggested_assignment(reviewer_scores,
@@ -310,14 +328,19 @@ if __name__ == "__main__":
                                                                      anonymity_multiplier=args.anonymity_multiplier)
         print(f'Done calculating initial assignment, total score: {assignment_score}', file=sys.stderr)
         final_scores += np.random.random(final_scores.shape)*1e-4
+                                 
     print('Calculating assignment of reviewers', file=sys.stderr)
+                                 
+    ## final_scores includes the constraints from COI, AC assignments, and track match
+    ## The constraints for CP itself are only the quota constraints (max/min # of papers a reviewer wants to review)
     assignment, assignment_score = create_suggested_assignment(final_scores,
                                              min_papers_per_reviewer=args.min_papers_per_reviewer,
                                              max_papers_per_reviewer=args.max_papers_per_reviewer,
                                              reviews_per_paper=args.reviews_per_paper, quotas=quotas)
+                                 
     print(f'Done calculating assignment, total score: {assignment_score}', file=sys.stderr)
 
-    # Print out the results
+    ####### Part 5: Print out the results
     with open(args.suggestion_file, 'w') as outf:
         for i, query in enumerate(submissions):
             scores = mat[i]
