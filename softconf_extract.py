@@ -27,7 +27,16 @@ def is_area_chair_from(role):
 
     Usually, ACs have 'Meta Reviewer" in their role description, e.g. "committee:Summarization:Meta Reviewer".
     """
-    return 'Meta Reviewer' in role
+    if 'Meta Reviewer' in role:
+        no_colon_role = re.sub(r': ', '- ', role)
+        track_strings = re.findall(r'([^:]+):Meta Reviewer', no_colon_role)
+        if len(track_strings) > 0:
+            track_strings = [track.strip() for track in track_strings]
+        else:
+            track_strings = ['']
+        return (True, track_strings)
+    else:
+        return(False, [])
 
 
 def is_senior_area_chair_from(role):
@@ -36,7 +45,16 @@ def is_senior_area_chair_from(role):
     SACs are discinguishable from everyone else via the "manager" suffix.
     E.g. committee:Speech:Speech (manager 1)
     """
-    return '(manager' in role
+    if '(manager' in role:
+        no_colon_role = re.sub(r': ', '- ', role)
+        track_strings = re.findall('([^:]+) \(manager', no_colon_role)
+        if len(track_strings) > 0:
+            track_strings = [track.strip() for track in track_strings]
+        else:
+            track_strings = ''
+        return (True, track_strings)
+    else:
+        return(False, [])
 
 
 def is_reviewer_from(role):
@@ -57,6 +75,12 @@ def is_reviewer_from(role):
     if role.startswith('committee:') and not is_senior_area_chair_from(role) and not is_area_chair_from(role):
         return True
 
+    # BEGIN TEMPORARY FIX
+    # For ACL-2021, softconf lists reviewer roles simply as the name of the track. "committee" does not appear in the field
+    if role != "Author" and not is_senior_area_chair_from(role)[0] and not is_area_chair_from(role)[0]:
+        return True
+    # END TEMPORARY FIX
+
     return False
 
 if __name__ == "__main__":
@@ -69,6 +93,7 @@ if __name__ == "__main__":
     parser.add_argument("--reviewer_out", type=str, required=True, help="The reviewer CSV file")
     parser.add_argument("--submission_out", type=str, default=None, help="The submission CSV file")
     parser.add_argument("--bid_out", type=str, default=None, help="The submission CSV file")
+    parser.add_argument("--non_reviewers_out", type=str, default=None, help="The non-reviewer output file")
 
     args = parser.parse_args()
 
@@ -91,7 +116,7 @@ if __name__ == "__main__":
     reviewers, reviewer_map, profile_map = [], {}, {}
 
     # Loop through reviewer and author profiles
-    with open(args.reviewer_out, 'w') as f:
+    with open(args.reviewer_out, 'w') as f, open(args.non_reviewers_out, 'w') as nrf:
         for i, line in enumerate(profiles_csv[1:]):
             # Some lines are incomplete due to the rightward columns being blank
             if len(line) < last_field + 1:
@@ -110,8 +135,8 @@ if __name__ == "__main__":
             # Check for special reviewer roles, and whether they have agreed to emergency review
             _role = line[rcol]
 
-            is_area_chair = is_area_chair_from(_role)
-            is_senior_area_chair = is_senior_area_chair_from(_role)
+            is_area_chair, ac_tracks = is_area_chair_from(_role)
+            is_senior_area_chair, sac_tracks = is_senior_area_chair_from(_role)
             is_programme_chair = _role == "manager:committee"
             is_reviewer = is_reviewer_from(_role)
 
@@ -125,20 +150,48 @@ if __name__ == "__main__":
             # "committee:<track name> (manager #)"
             # If conditions are met, append the reviewer data to the reviewer output file
             if is_reviewer and agreed_tscs or is_area_chair or is_senior_area_chair:
+                # This line may be outdated, since 'committee' no longer appears at the beginning
+                # of the reviewer role value
                 track = re.sub(r'committee:', '', _role)
                 track = re.sub(r':?Meta Reviewer:?', '', track).strip()
                 track = re.sub(r'^:', '', track).strip()
+                # Get rid of the manager parenthetical in the track name
+                track = re.sub(r' \(manager ?[0-9]?\)', '', track)
+                # Some tracks contain a colon within them, though it is always followed by a
+                # a space. For the purposes of being able to split up multiple tracks by
+                # colons, it is changed to a dash
+                track = re.sub(r': ', '- ', track)
+                # Reviewers may have multiple tracks, so we will split on colons
+                tracks = track.split(':')
+                # Compute the (reviewer) tracks as the set difference between all tracks and
+                # the reviewer's AC and SAC tracks
+                reviewer_track_set = set(tracks)
+                ac_track_set = set(ac_tracks)
+                sac_track_set = set(sac_tracks)
+                tracks = list(reviewer_track_set - ac_track_set - sac_track_set)
                 emergency = ('Yes' in line[Ecol] and 'no' == line[Rcol])
                 rev_data = {
                     'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id],
-                    'startUsername': line[ucol], 'areaChair': is_area_chair, 'emergency': emergency, 
-                    'track': track, 'seniorAreaChair': is_senior_area_chair
+                    'startUsername': line[ucol], 'tracks': tracks,
+                    'areaChair': is_area_chair, 'ac_tracks': ac_tracks, 
+                    'seniorAreaChair': is_senior_area_chair, 'sac_tracks': sac_tracks,
+                    'emergency': emergency
                 }
 
                 print(json.dumps(rev_data), file=f)
                 reviewer_map[line[ucol]] = len(reviewers)
                 reviewer_map[line[ecol]] = len(reviewers)
                 reviewers.append(rev_data)
+
+            else:
+                track = _role
+                emergency = ('Yes' in line[Ecol] and 'no' == line[Rcol])
+                rev_data = {
+                    'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id],
+                    'startUsername': line[ucol], 'areaChair': is_area_chair, 'emergency': emergency,
+                    'tracks': track, 'seniorAreaChair': is_senior_area_chair
+                }
+                print(json.dumps(rev_data), file=nrf)
 
             # FIXME: experience / graduation year is also useful
 
