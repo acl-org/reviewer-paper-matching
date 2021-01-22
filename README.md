@@ -4,6 +4,13 @@ This is an initial pass at code to match reviewers for the [ACL Conferences](htt
 It is based on paper matching between abstracts of submitted papers and a database of papers from
 [Semantic Scholar](https://www.semanticscholar.org).
 
+## Possible issues:
+(1) If a reviewer is in multiple tracks, say A and B, reviewer_data will contain a "new" track called "A:B". The reviewer will belong to that track, 
+instead of track A and B. Since no papers will be in this new track "A:B", the reviewer will not get any assignments.
+
+(2) The track match, AC assignment, and COI are treated as "soft constraints" in the reviewer_scores matrix, not as the hard constraints of the CP problem.
+
+
 ## Usage Instructions
 
 ### Part 1: Installing and Training Model (before review process)
