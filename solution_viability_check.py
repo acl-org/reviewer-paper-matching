@@ -1,7 +1,13 @@
 import argparse
+import itertools
 import pandas as pd
 
 def main():
+    """
+    A script to check whether the paper assignment problem is solvable (i.e.,
+    if there are enough reviewers within each track to review all of the track
+    papers)
+    """
     parser = argparse.ArgumentParser()
     
     parser.add_argument(
@@ -48,11 +54,6 @@ def main():
     has_review_track = [len(tracks) > 0 for tracks in all_reviewers['tracks']]
     reviewers = all_reviewers[has_review_track].reset_index(drop=True)
 
-    # TEMPORARY FIX: assume each reviewer only belongs to the first track they
-    # indicate
-    primary_tracks = [tracks[0] for tracks in reviewers['tracks']]
-    reviewers = reviewers.assign(tracks=primary_tracks)
-
     submissions = pd.read_json(args.submission_file, lines=True)
     quotas = pd.read_csv(args.quota_file)
 
@@ -60,40 +61,112 @@ def main():
     quota_usernames = list(quotas['Username'])
     quota_overlap = [name in reviewer_usernames for name in quota_usernames]
     quotas = quotas[quota_overlap].reset_index(drop=True)
-    quotas['QuotaForReview'] = quotas['QuotaForReview'].fillna(args.default_paper_quota)
-    quotas['QuotaForReview'] = quotas['QuotaForReview'].replace(to_replace='None', value=args.default_paper_quota)
+    quotas['QuotaForReview'].fillna(args.default_paper_quota, inplace=True)
+    quotas['QuotaForReview'].replace(
+        to_replace='None', value=0, inplace=True
+    )
+
     individual_quotas = {}
     for username, quota in zip(quotas['Username'], quotas['QuotaForReview']):
         individual_quotas[username] = int(quota)
 
     # Get the set of tracks to iterate over
-    tracks = list(set(reviewers['tracks']))
+    tracks = list(itertools.chain.from_iterable(reviewers['tracks']))
+    tracks = set(tracks)
 
-    # Sort the reviewers into tables by their primary track
+    # For each track, count reviewers, ACs, SACs, and submissions, calculating
+    # the number of reviewers needed and printint any warnings
     for track in tracks:
-        track_reviewers = reviewers[reviewers['tracks'] == track]
-        track_submissions = submissions[submissions['track'] == track]
-        print(f'Track name: {track}')
-        print(f'Number of reviewers: {len(track_reviewers)}')
-        print(f'Number of papers: {len(track_submissions)}')
         
+        # Reviewers may have more than one track, so the track reviewers are
+        # reviewers that have the current track in their track list
+        belongs_to_track = [track in lst for lst in reviewers['tracks']]
+        track_reviewers = reviewers[belongs_to_track].reset_index(drop=True)
+        num_reviewers = len(track_reviewers)
+
+        # Reviewers in only this track vs ones who are also in other tracks
+        only_this_track = [
+            len(lst) == 1 for lst in track_reviewers['tracks']
+        ]
+        reviewers_only_in_this_track = track_reviewers[only_this_track]
+        num_reviewers_only_in_this_track = len(reviewers_only_in_this_track)
+        num_reviewers_in_other_track = (
+            num_reviewers - num_reviewers_only_in_this_track
+        )
+        
+        # Submissions only have one track, so it suffices to gather them by the
+        # simple value of their track field
+        track_submissions = submissions[submissions['track'] == track]
+        num_papers = len(track_submissions)
+
+        # ACs
+        ac_belongs_to_track = [track in lst for lst in all_reviewers['ac_tracks']]
+        track_acs = all_reviewers[ac_belongs_to_track].reset_index(drop=True)
+        num_acs = len(track_acs)
+
+        # SACs
+        sac_belongs_to_track = [track in lst for lst in all_reviewers['sac_tracks']]
+        track_sacs = all_reviewers[sac_belongs_to_track].reset_index(drop=True)
+        
+        # Print out basic stats about the track
+        print(f'Track name: {track}')
+        print(f'Number of papers: {num_papers}')
+        print(f'Number of reviewers: {num_reviewers}')
+        print(f'Number of reviewers in other tracks: {num_reviewers_in_other_track}')
+        print(f'Number of ACs: {num_acs}')
+        print(f'Number of SACs: {len(track_sacs)}')
+
+        # Calculate the total number of reviewer-paper assignments available,
+        # based on the individual quota file if there is one, defaulting to the
+        # provided default quota. Also calculate the number if only the
+        # reviewers dedicated to this track count
         if args.quota_file:
             quota_sum = 0
+            dedicated_quota_sum = 0
             for username in track_reviewers['startUsername']:
                 quota_sum += individual_quotas[username]
+            for username in reviewers_only_in_this_track['startUsername']:
+                dedicated_quota_sum += individual_quotas[username]
         else:
-            quota_sum = args.default_paper_quota * len(track_reviewers)
+            quota_sum = args.default_paper_quota * num_reviewers
+            dedicated_quota_sum = (
+                args.default_paper_quota * num_reviewers_only_in_this_track
+            )
         print(f'Number reviewer-paper assignments available: {quota_sum}')
+        print(f'Number reviewer-paper assignments dedicated to this track: {dedicated_quota_sum}')
         
-        papers_times_committee = args.reviewers_per_paper * len(track_submissions)
+        # Calculate the number of reviewer-paper assignments needed (based on
+        # input number of reviewers per paper) and print a warning if the needed
+        # number is greater than the number available
+        papers_times_committee = (
+            args.reviewers_per_paper * num_papers
+        )
         print(f'Number reviewer-paper assignments needed: {papers_times_committee}')
+        if papers_times_committee > quota_sum:
+            print("Warning: number of reviews required exceeds number available")
+        else:
+            print("Warning: None")
 
-        reviewer_info = list(zip(track_reviewers['name'], track_reviewers['startUsername']))
+        print('Area Chair Info:')
+        print('  username, name')
+        for i in range(num_acs):
+            username = track_acs.loc[i, 'startUsername']
+            name = track_acs.loc[i, 'name']
+            print(f'  {username}, {name}')
 
         print('Reviewer info:')
-        for reviewer in reviewer_info:
-            print(f'{reviewer[0]}, {reviewer[1]}, {individual_quotas[reviewer[1]]}')
-        print('\n\n')
+        print('  username, name, quota, other tracks')
+        for i in range(num_reviewers):
+            username = track_reviewers.loc[i, 'startUsername']
+            name = track_reviewers.loc[i, 'name']
+            quota = str(individual_quotas[username])
+            other_tracks = ';'.join(
+                set(track_reviewers.loc[i, 'tracks']) - set([track])
+            )
+            info = [username, name, quota, other_tracks]
+            info = ', '.join(info)
+            print(f'  {info}')
+        print('')
 
 
 if __name__ == '__main__':
