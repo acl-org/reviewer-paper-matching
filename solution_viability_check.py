@@ -71,8 +71,9 @@ def main():
         individual_quotas[username] = int(quota)
 
     # Get the set of tracks to iterate over
-    tracks = list(itertools.chain.from_iterable(reviewers['tracks']))
-    tracks = set(tracks)
+    reviewer_tracks = list(itertools.chain.from_iterable(reviewers['tracks']))
+    paper_tracks = list(submissions['track'])
+    tracks = set(reviewer_tracks) | set(paper_tracks)
 
     # For each track, count reviewers, ACs, SACs, and submissions, calculating
     # the number of reviewers needed and printint any warnings
@@ -123,10 +124,12 @@ def main():
         if args.quota_file:
             quota_sum = 0
             dedicated_quota_sum = 0
-            for username in track_reviewers['startUsername']:
-                quota_sum += individual_quotas[username]
-            for username in reviewers_only_in_this_track['startUsername']:
-                dedicated_quota_sum += individual_quotas[username]
+            if num_reviewers > 0:
+                for username in track_reviewers['startUsername']:
+                    quota_sum += individual_quotas[username]
+            if num_reviewers_only_in_this_track > 0:
+                for username in reviewers_only_in_this_track['startUsername']:
+                    dedicated_quota_sum += individual_quotas[username]
         else:
             quota_sum = args.default_paper_quota * num_reviewers
             dedicated_quota_sum = (
