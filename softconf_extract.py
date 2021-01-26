@@ -1,15 +1,16 @@
 import argparse
-import json
 import csv
-import suggest_utils
-import sys
-import numpy as np
+import json
 import re
+import sys
+import warnings
 import pandas
+import suggest_utils
+import numpy as np
 
 
 def find_colids(colnames, header):
-    '''Get the csv column index of each field in the colnames parameter'''
+    """Get the csv column index of each field in the colnames parameter"""
     colids, colmap = [-1 for _ in colnames], {}
     for i, name in enumerate(colnames):
         for alias in name.split('|'):
@@ -23,15 +24,16 @@ def find_colids(colnames, header):
 
 
 def is_area_chair_from(role):
-    """ Computes if the role description corresponds to a area chair
+    """
+    Computes if the role description corresponds to a area chair
 
     Usually, ACs have 'Meta Reviewer" in their role description, e.g. "committee:Summarization:Meta Reviewer".
     """
     if 'Meta Reviewer' in role:
         no_colon_role = re.sub(r': ', '- ', role)
-        track_strings = re.findall(r'([^:]+):Meta Reviewer', no_colon_role)
+        track_strings = re.findall(r'(.+):Meta Reviewer$', no_colon_role)
         if len(track_strings) > 0:
-            track_strings = [track.strip() for track in track_strings]
+            track_strings = track_strings[0].split(':')
         else:
             track_strings = ['']
         return (True, track_strings)
@@ -40,7 +42,8 @@ def is_area_chair_from(role):
 
 
 def is_senior_area_chair_from(role):
-    """ Computes if the role description corresponds to a senior area chair
+    """ 
+    Computes if the role description corresponds to a senior area chair
 
     SACs are discinguishable from everyone else via the "manager" suffix.
     E.g. committee:Speech:Speech (manager 1)
@@ -58,7 +61,8 @@ def is_senior_area_chair_from(role):
 
 
 def is_reviewer_from(role):
-    """ Computes if the role description corresponds to a reviewer
+    """
+    Computes if the role description corresponds to a reviewer
 
     Before reviewer track assignment each reviewer has the role 'committee'
     and after - most of the reviewers have new format: 'committee:TRACK'
@@ -83,17 +87,17 @@ def is_reviewer_from(role):
 
     return False
 
-if __name__ == "__main__":
-
+def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--submission_in", type=str, default=None, help="The submission CSV file")
+    parser.add_argument("--submission_in", type=str, required=True, help="The submission CSV file")
     parser.add_argument("--profile_in", type=str, required=True, help="The profile CSV file")
-    parser.add_argument("--bid_in", type=str, default=None, help="The submission CSV file")
-    parser.add_argument("--reviewer_out", type=str, required=True, help="The reviewer CSV file")
-    parser.add_argument("--submission_out", type=str, default=None, help="The submission CSV file")
-    parser.add_argument("--bid_out", type=str, default=None, help="The submission CSV file")
-    parser.add_argument("--non_reviewers_out", type=str, default=None, help="The non-reviewer output file")
+    parser.add_argument("--bid_in", type=str, default=None, help="The bids CSV file")
+    parser.add_argument("--reviewer_out", type=str, required=True, help="The cleaned reviewer jsonl file")
+    parser.add_argument("--submission_out", type=str, default=None, help="The cleaned submission jsonl file")
+    parser.add_argument("--bid_out", type=str, default=None, help="A numpy matrix of submission/reviewer scores")
+    parser.add_argument("--non_reviewers_out", type=str, default=None, help="An output file listing non-reviewers")
+    parser.add_argument("--multi_track_reviewers_out", type=str, default=None, help="An output file listing reviewers signed up for multiple tracks")
 
     args = parser.parse_args()
 
@@ -114,9 +118,16 @@ if __name__ == "__main__":
     Rcol, Ecol = find_colids(['PCRole', 'emergencyReviewer'], profiles_csv[0])
     last_field = max([ucol, ecol, fcol, lcol, scol, rcol, Rcol, Ecol])
     reviewers, reviewer_map, profile_map = [], {}, {}
+    
+    if args.multi_track_reviewers_out:
+        with open(args.multi_track_reviewers_out, 'w+') as mtrf:
+            print(
+                'start_ID, email, first_name, last_name, reviewer_tracks, ac_tracks, sac_tracks, softconf_role_string',
+                file=mtrf
+            )
 
     # Loop through reviewer and author profiles
-    with open(args.reviewer_out, 'w') as f, open(args.non_reviewers_out, 'w') as nrf:
+    with open(args.reviewer_out, 'w') as f:
         for i, line in enumerate(profiles_csv[1:]):
             # Some lines are incomplete due to the rightward columns being blank
             if len(line) < last_field + 1:
@@ -166,9 +177,11 @@ if __name__ == "__main__":
                 # Compute the (reviewer) tracks as the set difference between all tracks and
                 # the reviewer's AC and SAC tracks
                 reviewer_track_set = set(tracks)
+                ac_tracks = [track for track in ac_tracks if ' (manager' not in track]
                 ac_track_set = set(ac_tracks)
                 sac_track_set = set(sac_tracks)
                 tracks = list(reviewer_track_set - ac_track_set - sac_track_set)
+                num_tracks = len(tracks) + len(ac_tracks) + len(sac_tracks)
                 emergency = ('Yes' in line[Ecol] and 'no' == line[Rcol])
                 rev_data = {
                     'name': f'{line[fcol]} {line[lcol]}', 'ids': [s2id],
@@ -177,13 +190,19 @@ if __name__ == "__main__":
                     'seniorAreaChair': is_senior_area_chair, 'sac_tracks': sac_tracks,
                     'emergency': emergency
                 }
-
                 print(json.dumps(rev_data), file=f)
                 reviewer_map[line[ucol]] = len(reviewers)
                 reviewer_map[line[ecol]] = len(reviewers)
                 reviewers.append(rev_data)
-
-            else:
+                if args.multi_track_reviewers_out and num_tracks > 1:
+                    info = [
+                        line[ucol], line[ecol], line[fcol], line[lcol], '; '.join(tracks), 
+                        '; '.join(ac_tracks), '; '.join(sac_tracks), _role
+                    ]
+                    with open(args.multi_track_reviewers_out, 'a+') as mtrf:
+                        writer = csv.writer(mtrf, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+                        writer.writerow(info)
+            elif args.non_reviewers_out:
                 track = _role
                 emergency = ('Yes' in line[Ecol] and 'no' == line[Rcol])
                 rev_data = {
@@ -191,10 +210,10 @@ if __name__ == "__main__":
                     'startUsername': line[ucol], 'areaChair': is_area_chair, 'emergency': emergency,
                     'tracks': track, 'seniorAreaChair': is_senior_area_chair
                 }
-                print(json.dumps(rev_data), file=nrf)
+                with open(args.non_reviewers_out, 'a+') as nrf:
+                    print(json.dumps(rev_data), file=nrf)
 
             # FIXME: experience / graduation year is also useful
-
 
     # ----------------------------------------------------------------------------------------------
     # Process the submission csv file and submission/reviewer match scores, factoring in COI
@@ -203,8 +222,6 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------------------------------
 
     # Read-in submission profiles and process field IDs
-    if not args.submission_in: 
-        raise RuntimeError(f'Submission input file not included')
     with open(args.submission_in, 'r') as f:
         csv_reader = csv.reader(f, delimiter=',')
         submissions_csv = list(csv_reader)
@@ -235,17 +252,14 @@ if __name__ == "__main__":
         )
         if bids.shape[0] != bids_in.shape[0]:
             raise RuntimeError("--bids_in should have the rows corresponding to the rows in the --submission_in")
-
         if bids_in.columns[-1].startswith("Unnamed:"):
             bids_in.drop(bids_in.columns[-1], axis=1, inplace=True)
         for i, (sid, sub_bids) in enumerate(bids_in.iterrows()):
             # process bids (even with no bidding, this still has COIs)
             for username, bidding_code in sub_bids.to_dict().items():
-
                 if isinstance(bidding_code, float) and bidding_code != bidding_code:
-                    print(f"NaN value found for username {username}")
+                    warnings.warn(f"NaN value found for username {username}", UserWarning)
                     continue
-
                 if bidding_code in '1234':
                     reviewer_id = reviewer_map.get(username)
                     if reviewer_id != None:
@@ -263,7 +277,6 @@ if __name__ == "__main__":
             author_emails = line[ecol].split('; ')
             author_names = re.split(delim_re, line[acol])
             author_startids = [line[icols[j]] for j in range(len(author_emails))]
-
             authors = []
             # Loop over author profiles to make sure any reviewers among the authors do not get
             # assigned to their own submission
@@ -279,18 +292,15 @@ if __name__ == "__main__":
                     elif air != None:
                         bids[i,air] = 0
                 else:
-                    print(f'WARNING: could not find account for {ae}, just using name {an}; username is "{ai}"')
+                    warnings.warn(
+                        f'Could not find account for {ae}, just using name {an}; username is "{ai}"',
+                        RuntimeWarning
+                    )
                     authors.append({'name': an, 'ids': []})
                     if ai: not_found.add(ai)
             
             track = line[rcol]
-            # BEGIN DELETE ME
-            # Temporary fix to add n/a track where missing during script testing
-            if not track:
-                track = "n/a"
-            # END DELETE ME
-            assert track
-            
+
             # Read in the submission type to either short or long, raising a value error if a
             # submission is of an invalid type
             if 'short' in line[ycol].lower():
@@ -303,12 +313,18 @@ if __name__ == "__main__":
             # information to the output file and add the index to the list of submissions to be
             # kept
             if 'Reject' not in line[stcol]:
+                if not track:
+                    track = "n/a"
+                    warnings.warn(
+                        f"Submission ID {line[scol]} does not have a track assigned. It will be"
+                        " set as 'n/a' for output, but it will not be assigned any reviewers"
+                        " unless there are reviewers in track 'n/a'",
+                        UserWarning
+                    )
                 data = {
                     'title': line[tcol], 'track': track, 'type': typ, 'paperAbstract': line[abscol], 
                     'authors': authors, 'startSubmissionId': line[scol]
                 }
-                submissions.append(data)
-                #submission_map[line[scol]] = i
                 print(json.dumps(data), file=f)
                 submission_kept.append(i)
 
@@ -318,3 +334,6 @@ if __name__ == "__main__":
         bids = bids[submission_kept, :]
         with open(args.bid_out, 'wb') as f:
             np.save(f, bids)
+
+if __name__ == "__main__":
+    main()
