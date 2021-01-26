@@ -92,7 +92,7 @@ def main():
 
         print('Reviewer info:')
         for reviewer in reviewer_info:
-            print(f'{reviewer[0]}, {reviewer[1]}')
+            print(f'{reviewer[0]}, {reviewer[1]}, {individual_quotas[reviewer[1]]}')
         print('\n\n')
 
 
