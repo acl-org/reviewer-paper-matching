@@ -112,6 +112,14 @@ def main():
         csv_reader = csv.reader(f, delimiter=',')
         profiles_csv = list(csv_reader)
 
+    if args.non_reviewers_out:
+        with open(args.non_reviewers_out, 'w') as f:
+            pass
+
+    if args.multi_track_reviewers_out:
+        with open(args.multi_track_reviewers_out, 'w') as f:
+                pass
+
     colnames = ['Username', 'Email', 'First Name', 'Last Name', 'Semantic Scholar ID', 'Roles']
     ucol, ecol, fcol, lcol, scol, rcol = find_colids(colnames, profiles_csv[0])
     # Also check that they've agreed to review in the local profile questions 
@@ -150,17 +158,18 @@ def main():
             is_senior_area_chair, sac_tracks = is_senior_area_chair_from(_role)
             is_programme_chair = _role == "manager:committee"
             is_reviewer = is_reviewer_from(_role)
-
-            agreed_tscs = 'reviewer' in line[Rcol] or 'AC' in line[Rcol] or 'Yes' in line[Ecol]
-            if is_reviewer and not agreed_tscs:
-                print(f'WARNING: {line[ucol]} has not agreed to review or emergency review; role {_role}; agreed {line[Rcol]}')
+            
+            # ACL 2021: Commenting out this block because it doesn't make much sense
+            # agreed_tscs = 'reviewer' in line[Rcol] or 'AC' in line[Rcol] or 'Yes' in line[Ecol]
+            # if is_reviewer[0] and not agreed_tscs:
+                # print(f'WARNING: {line[ucol]} has not agreed to review or emergency review; role {_role}; agreed {line[Rcol]}')
                 # this line below does not make sense
-                agreed_tscs = True
+                # agreed_tscs = True
 
             # Check for not author, and not PC "manager:committee" and not SAC 
             # "committee:<track name> (manager #)"
             # If conditions are met, append the reviewer data to the reviewer output file
-            if is_reviewer and agreed_tscs or is_area_chair or is_senior_area_chair:
+            if is_reviewer or is_area_chair or is_senior_area_chair:
                 # This line may be outdated, since 'committee' no longer appears at the beginning
                 # of the reviewer role value
                 track = re.sub(r'committee:', '', _role)
@@ -316,9 +325,9 @@ def main():
                 if not track:
                     track = "n/a"
                     warnings.warn(
-                        f"Submission ID {line[scol]} does not have a track assigned. It will be"
-                        " set as 'n/a' for output, but it will not be assigned any reviewers"
-                        " unless there are reviewers in track 'n/a'",
+                        f"Submission ID {line[scol]} does not have a track assigned.\n"
+                        "  It will be set as 'n/a' for output, but it will not be assigned any"
+                        " reviewers unless there are reviewers in track 'n/a'",
                         UserWarning
                     )
                 data = {
