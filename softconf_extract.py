@@ -309,6 +309,7 @@ def main():
                     if ai: not_found.add(ai)
             
             track = line[rcol]
+            track = re.sub(r':', '-', track)
 
             # Read in the submission type to either short or long, raising a value error if a
             # submission is of an invalid type
