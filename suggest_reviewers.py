@@ -240,10 +240,17 @@ if __name__ == "__main__":
     if args.quota_file:
         username_to_idx = dict([(r['startUsername'], j) for j, r in enumerate(reviewer_data)])
     
-        quotas_table = pd.read_csv(args.quota_file, skipinitialspace=True, quotechar='"', encoding = "UTF-8")
-        quotas_table.fillna('', inplace=True)
-        for i, line in quotas_table.iterrows():
-            u, q = line['Username'], line['Quota']
+        quota_table = pd.read_csv(args.quota_file, skipinitialspace=True, quotechar='"', encoding = "UTF-8")
+        reviewer_usernames = username_to_idx.keys()
+        quota_usernames = list(quota_table['Username'])
+        quota_overlap = [name in reviewer_usernames for name in quota_usernames]
+        quota_table = quota_table[quota_overlap].reset_index(drop=True)
+        quota_table['QuotaForReview'].fillna(args.max_papers_per_reviewer, inplace=True)
+        quota_table['QuotaForReview'].replace(
+        to_replace='None', value=0, inplace=True
+    )
+        for i, line in quota_table.iterrows():
+            u, q = line['Username'], line['QuotaForReview']
             idx = username_to_idx.get(u)
             if idx != None:
                 quotas[idx] = int(q)
@@ -285,7 +292,12 @@ if __name__ == "__main__":
         track_papers = defaultdict(list)
         track_reviewers = defaultdict(list)
         for j, reviewer in enumerate(reviewer_data):
-            track_reviewers[reviewer['track']].append(j)
+            if args.area_chairs:
+                track_list = reviewer['ac_tracks']
+            else:
+                track_list = reviewer['tracks']
+            for track in track_list:
+                track_reviewers[track].append(j)
         for i, submission in enumerate(submissions):
             if submission['track']:
                 track_papers[submission['track']].append(i)
