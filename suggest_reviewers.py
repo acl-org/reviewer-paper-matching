@@ -1,5 +1,8 @@
 import argparse
+import csv
 import json
+import os
+import re
 import sys
 import cvxpy as cp
 import numpy as np
@@ -631,6 +634,10 @@ def main():
     # a per-track spreadsheet of assigned reviewers, as well as a global file
     # with the minimum assignment information
     if args.assignment_spreadsheet:
+
+        spreadsheet_base, spreadsheet_extension = (
+            os.path.splitext(args.assignment_spreadsheet)[:2]
+        )
         
         # Create a list of submissions both by track and globally
         track_assignments = defaultdict(list)
@@ -638,18 +645,20 @@ def main():
         
         # Form the csv headers such that both spreadsheets will contain the id 
         # of the submission and the username of each assigned reviewer/AC
-        track_header_info = ['id']
-        global_header_info = ['id']
+        track_header_info = ['ID']
+        global_header_info = ['ID']
         for x in range(1, args.reviews_per_paper + 1):
             if args.area_chairs:
-                ac_field = f'AC {x}'
+                ac_field = f'Assigned AC {x}'
                 track_header_info.append(ac_field)
                 global_header_info.append(ac_field)
             else:
-                reviewer_field = f'reviewer {x}'
+                reviewer_field = f'Assigned Reviewer {x}'
                 track_header_info.append(reviewer_field)
                 global_header_info.append(reviewer_field)
         
+        global_header_info += ['Track']
+
         # The by-track spreadsheet will also show SACs and ACs with COIs
         track_header_info += ['SACs with COI', 'ACs with COI']
         
@@ -706,26 +715,22 @@ def main():
             writer = csv.writer(
                 f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL
             )
-            writer.write_row(global_header_info)
+            writer.writerow(global_header_info)
             for entry in global_assignments:
-                writer.write_row(entry)
+                writer.writerow(entry)
 
         # For each track, create a file as a csv spreadsheet for all the track
-        # submissions and their reviewer assignments. Since the track names are
-        # not good as file names, the mapping between track and file number is
-        # printed out for the record
+        # submissions and their reviewer assignments
         for i, track in enumerate(track_assignments.keys()):
-            with open(f'{args.assignment_spreadsheet}_{i}', 'w+') as f:
+            alphanum_track = '-'.join(re.split(r'[\W,:]+', track))
+            filename = f'{spreadsheet_base}_{alphanum_track}{spreadsheet_extension}'
+            with open(filename, 'w+') as f:
                 writer = csv.writer(
                     f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL
                 )
-                writer.write_row(track_header_info)
+                writer.writerow(track_header_info)
                 for entry in track_assignments[track]:
-                    writer.write_row(entry)
-            print(
-                f"Track {track} written to spreadsheet number {i}",
-                file=sys.stderr
-            )
+                    writer.writerow(entry)
 
 if __name__ == "__main__":
     main()
