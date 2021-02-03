@@ -401,7 +401,7 @@ def main():
     if cois is not None:
         num_cois = np.sum(cois)
         print(f'Applying {num_cois} COIs', file=sys.stderr)
-        reviewer_scores = np.where(cois == 0, reviewer_scores, -1e5)
+        reviewer_scores = np.where(cois == 0, reviewer_scores, -1.01e5)
 
     # Part 3(b): Load reviewer specific quotas; use quotas as constraints to the
     # CP problem
@@ -463,7 +463,7 @@ def main():
             if not reviewer.get('areaChair', False):
                 ## the reviewer is not AC
                 num_excluded += 1
-                reviewer_scores[:, j] = -1e5
+                reviewer_scores[:, j] = -1.02e5
             else:
                 ## the reviewer is an AC:
                 num_included += 1
@@ -473,7 +473,7 @@ def main():
                             False) or reviewer.get('areaChair', False):
                 ## the reviewer is an SAC or AC
                 num_excluded += 1
-                reviewer_scores[:, j] = -1e5
+                reviewer_scores[:, j] = -1.03e5
             else:
                 ## the reviewer is a reviewer
                 num_included += 1
@@ -529,7 +529,7 @@ def main():
 
         # If the paper and the reviewers are not in the same track, the
         # reviewer_score is -1e5
-        reviewer_scores = np.where(mask == 1, reviewer_scores, -1e5)
+        reviewer_scores = np.where(mask == 1, reviewer_scores, -2e5)
         print(
             f'Applying track constraints for {len(rtr)} tracks',
             file=sys.stderr
@@ -579,8 +579,6 @@ def main():
         f'Done calculating assignment, total score: {assignment_score}',
         file=sys.stderr
     )
-
-    print(type(assignment))
 
     # --------------------------------------------------------------------------
     # Part 5: Print out the results
@@ -644,7 +642,7 @@ def main():
         global_header_info = ['id']
         for x in range(1, args.reviews_per_paper + 1):
             if args.area_chairs:
-                ac_field = f'ac {x}'
+                ac_field = f'AC {x}'
                 track_header_info.append(ac_field)
                 global_header_info.append(ac_field)
             else:
@@ -669,7 +667,9 @@ def main():
             # Use the scores to get the index for each assigned reviewer, and
             # get their username for the output spreadsheet
             scores = mat[i]
-            assigned_reviewers = assignment[i].argsort()[-args.reviews_per_paper:][::-1]
+            assigned_reviewers = (
+                assignment[i].argsort()[-args.reviews_per_paper:][::-1]
+            )
             for idx in assigned_reviewers:
                 name = reviewer_data[idx]['startUsername']
                 track_submission_info.append(name)

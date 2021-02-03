@@ -140,12 +140,12 @@ def main():
         # If you wanted to give each AC and individual quota, the code would
         # need to be changed
         ac_quota_sum = args.default_ac_quota * num_acs
+        print(f'Number AC assignments available: {ac_quota_sum}')
         if num_acs > 0:
             papers_per_ac = num_papers / num_acs
         else:
             papers_per_ac = float('inf')
         print(f'Number of papers per AC: {round(papers_per_ac, 1)}')
-        print(f'Number AC assignments available: {ac_quota_sum}')
         if num_papers > ac_quota_sum:
             print(
                 "AC Warning: number of papers exceeds number of AC assignments available"
@@ -180,15 +180,15 @@ def main():
         # input number of reviewers per paper) and print a warning if the needed
         # number is greater than the number available
         papers_times_committee = (args.reviewers_per_paper * num_papers)
-        if num_reviewers > 0:
-            papers_per_reviewer = num_papers / num_reviewers
-        else:
-            papers_per_reviewer = float('inf')
-        print(f'Number of papers per reviewer: {round(papers_per_reviewer, 1)}')
         print(
             f'Number reviewer-paper assignments needed: {papers_times_committee}'
         )
-        if papers_times_committee > quota_sum:
+        if num_reviewers > 0:
+            papers_per_reviewer = num_papers * args.reviewers_per_paper / num_reviewers
+        else:
+            papers_per_reviewer = float('inf')
+        print(f'Number of reviews needed per reviewer: {round(papers_per_reviewer, 1)}')
+        if papers_times_committee > dedicated_quota_sum:
             print(
                 "Reviewer Warning: number of reviews required exceeds number available"
             )
