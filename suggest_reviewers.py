@@ -266,6 +266,14 @@ def main():
         " matrix"
     )
     parser.add_argument(
+        "--save_assignment_matrix",
+        help="A filename for where to sae the assignment matrix"
+    )
+    parser.add_argument(
+        "--load_assignment_matrix",
+        help="A filename for wher to load the cached assignment matrix"
+    )
+    parser.add_argument(
         "--max_papers_per_reviewer",
         default=5,
         type=int,
@@ -578,6 +586,9 @@ def main():
         quotas=quotas
     )
 
+    if args.save_assignment_matrix:
+        np.save(args.save_assignment_matrix, assignment)
+
     print(
         f'Done calculating assignment, total score: {assignment_score}',
         file=sys.stderr
@@ -650,12 +661,23 @@ def main():
         for x in range(1, args.reviews_per_paper + 1):
             if args.area_chairs:
                 ac_field = f'Assigned AC {x}'
-                track_header_info.append(ac_field)
-                global_header_info.append(ac_field)
+                score_field = f'Assigned AC {x} score'
+                track_header_info += [ac_field, score_field]
+                global_header_info += [ac_field, score_field]
             else:
-                reviewer_field = f'Assigned Reviewer {x}'
-                track_header_info.append(reviewer_field)
-                global_header_info.append(reviewer_field)
+                reviewer_field = f'Assigned reviewer {x}'
+                score_field = f'Assigned reviewer {x} score'
+                track_header_info += [reviewer_field, score_field]
+                global_header_info += [reviewer_field, score_field]
+        for x in range(1, 4):
+            if args.area_chairs:
+                ac_field = f'Similar AC {x}'
+                score_field = f'Similar AC {x} score'
+                track_header_info += [ac_field, score_field]
+            else:
+                reviewer_field = f'Similar reviewer {x}'
+                score_field = f'Similar reviewer {x} score'
+                track_header_info += [reviewer_field, score_field]
         
         global_header_info += ['Track']
 
@@ -675,14 +697,19 @@ def main():
             
             # Use the scores to get the index for each assigned reviewer, and
             # get their username for the output spreadsheet
-            scores = mat[i]
             assigned_reviewers = (
                 assignment[i].argsort()[-args.reviews_per_paper:][::-1]
             )
+            similar_reviewers = reviewer_scores[i].argsort()[-3:][::-1]
             for idx in assigned_reviewers:
-                name = reviewer_data[idx]['startUsername']
-                track_submission_info.append(name)
-                global_submission_info.append(name)
+                username = reviewer_data[idx]['startUsername']
+                score = reviewer_scores[i][idx]
+                track_submission_info += [username, score]
+                global_submission_info += [username, score]
+            for idx in similar_reviewers:
+                username = reviewer_data[idx]['startUsername']
+                score = reviewer_scores[i][idx]
+                track_submission_info += [username, score]
             
             # Also append the track name to the global submission info
             global_submission_info.append(track)
