@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 import cvxpy as cp
 import numpy as np
@@ -633,6 +634,10 @@ def main():
     # a per-track spreadsheet of assigned reviewers, as well as a global file
     # with the minimum assignment information
     if args.assignment_spreadsheet:
+
+        spreadsheet_base, spreadsheet_extention = (
+            os.path.splitext(args.assignment_spreadsheet)[:2]
+        )
         
         # Create a list of submissions both by track and globally
         track_assignments = defaultdict(list)
@@ -715,7 +720,8 @@ def main():
         # not good as file names, the mapping between track and file number is
         # printed out for the record
         for i, track in enumerate(track_assignments.keys()):
-            with open(f'{args.assignment_spreadsheet}_{i}', 'w+') as f:
+            filename = f'{spreadsheet_base}_{i}{spreadsheet_extension}'
+            with open(filename, 'w+') as f:
                 writer = csv.writer(
                     f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL
                 )
