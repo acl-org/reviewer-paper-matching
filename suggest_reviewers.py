@@ -540,7 +540,7 @@ def main():
 
         # If the paper and the reviewers are not in the same track, the
         # reviewer_score is -1e5
-        reviewer_scores = np.where(mask == 1, reviewer_scores, -2e5)
+        reviewer_scores = np.where(mask == 1, reviewer_scores, -1.04e5)
         print(
             f'Applying track constraints for {len(rtr)} tracks',
             file=sys.stderr
@@ -679,7 +679,7 @@ def main():
                 score_field = f'Similar reviewer {x} score'
                 track_header_info += [reviewer_field, score_field]
         
-        global_header_info += ['Track']
+        global_header_info += ['Track', 'Assigned within same track']
 
         # The by-track spreadsheet will also show SACs and ACs with COIs
         track_header_info += ['SACs with COI', 'ACs with COI']
@@ -701,18 +701,23 @@ def main():
                 assignment[i].argsort()[-args.reviews_per_paper:][::-1]
             )
             similar_reviewers = reviewer_scores[i].argsort()[-3:][::-1]
+            same_track = True
             for idx in assigned_reviewers:
                 username = reviewer_data[idx]['startUsername']
-                score = reviewer_scores[i][idx]
+                score = round(reviewer_scores[i][idx], 4)
                 track_submission_info += [username, score]
                 global_submission_info += [username, score]
+                if args.area_chairs:
+                    same_track = same_track and (track in reviewer_data[idx]['ac_tracks'])
+                else:
+                    same_track = same_track and (track in reviewer_data[idx]['tracks'])
             for idx in similar_reviewers:
                 username = reviewer_data[idx]['startUsername']
-                score = reviewer_scores[i][idx]
+                score = round(reviewer_scores[i][idx], 4)
                 track_submission_info += [username, score]
             
             # Also append the track name to the global submission info
-            global_submission_info.append(track)
+            global_submission_info += [track, same_track]
             
             # Get the COIs for the submission, and filter out all those that are
             # SACs or ACs
