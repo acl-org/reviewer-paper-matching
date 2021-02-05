@@ -90,8 +90,7 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
         scores = all_scores[i]
         INVALID_SCORE = 0
         # slow -- 2-3 secs
-        scored_rdb = rdb * scores.reshape((len(scores), 1)
-                                         ) + (1 - rdb) * INVALID_SCORE
+        scored_rdb = rdb * scores.reshape((len(scores), 1)) + (1 - rdb) * INVALID_SCORE
         if operator == 'max':
             agg[i] = np.amax(scored_rdb, axis=0)
         elif operator.startswith('weighted_top'):
@@ -136,6 +135,7 @@ def create_suggested_assignment(
             f' ({num_pap}) given a constraint of {reviews_per_paper} reviews'
             f' per paper and {max_papers_per_reviewer} reviews per reviewer'
         )
+    '''
     if num_rev * min_papers_per_reviewer > num_pap * reviews_per_paper:
         raise ValueError(
             f'There are too many reviewers ({num_rev}) to review all the papers'
@@ -143,6 +143,7 @@ def create_suggested_assignment(
             f' per paper and a minimum of {min_papers_per_reviewer} reviews per'
             ' reviewer'
         )
+    '''
     if anonymity_multiplier < 1.0:
         raise ValueError(f'anonymity_multiplier must be >= 1.0')
     assignment = cp.Variable(shape=reviewer_scores.shape, boolean=True)
