@@ -474,7 +474,7 @@ def main():
             if not reviewer.get('areaChair', False):
                 ## the reviewer is not AC
                 num_excluded += 1
-                reviewer_scores[:, j] -= 130
+                reviewer_scores[:, j] -= 150
             else:
                 ## the reviewer is an AC:
                 num_included += 1
@@ -484,7 +484,7 @@ def main():
                             False) or reviewer.get('areaChair', False):
                 ## the reviewer is an SAC or AC
                 num_excluded += 1
-                reviewer_scores[:, j] -= 130
+                reviewer_scores[:, j] -= 150
             else:
                 ## the reviewer is a reviewer
                 num_included += 1
@@ -540,7 +540,7 @@ def main():
 
         # If the paper and the reviewers are not in the same track, the
         # reviewer_score is -1e5
-        reviewer_scores = np.where(mask == 1, reviewer_scores, reviewer_scores-150)
+        reviewer_scores = np.where(mask == 1, reviewer_scores, reviewer_scores-130)
         print(
             f'Applying track constraints for {len(rtr)} tracks',
             file=sys.stderr
@@ -704,17 +704,21 @@ def main():
             same_track = True
             for idx in assigned_reviewers:
                 username = reviewer_data[idx]['startUsername']
+                name = reviewer_data[idx]['name']
+                name = f"{name} ({username})"
                 score = round(reviewer_scores[i][idx], 4)
-                track_submission_info += [username, score]
-                global_submission_info += [username, score]
+                track_submission_info += [name, score]
+                global_submission_info += [name, score]
                 if args.area_chairs:
-                    same_track = same_track and (track in reviewer_data[idx]['ac_tracks'])
+                    same_track = same_track and (track in set(reviewer_data[idx]['ac_tracks']))
                 else:
-                    same_track = same_track and (track in reviewer_data[idx]['tracks'])
+                    same_track = same_track and (track in set(reviewer_data[idx]['tracks']))
             for idx in similar_reviewers:
                 username = reviewer_data[idx]['startUsername']
+                name = reviewer_data[idx]['name']
+                name = f"{name} ({username})"
                 score = round(reviewer_scores[i][idx], 4)
-                track_submission_info += [username, score]
+                track_submission_info += [name, score]
             
             # Also append the track name to the global submission info
             global_submission_info += [track, same_track]
@@ -734,8 +738,8 @@ def main():
                 reviewer_data[idx]['startUsername']
                 for idx in coi_idx if reviewer_data[idx]['areaChair']
             ]
-            track_submission_info.append(';'.join(coi_sacs))
-            track_submission_info.append(';'.join(coi_acs))
+            track_submission_info.append('; '.join(coi_sacs))
+            track_submission_info.append('; '.join(coi_acs))
             
             # Append the submission data to both the 
             track_assignments[track].append(track_submission_info)
