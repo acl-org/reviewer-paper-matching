@@ -413,7 +413,7 @@ def main():
     if cois is not None:
         num_cois = np.sum(cois)
         print(f'Applying {num_cois} COIs', file=sys.stderr)
-        reviewer_scores = np.where(cois == 0, reviewer_scores, -1.01e5)
+        reviewer_scores = np.where(cois == 0, reviewer_scores, reviewer_scores-110)
 
     # Part 3(b): Load reviewer specific quotas; use quotas as constraints to the
     # CP problem
@@ -475,7 +475,7 @@ def main():
             if not reviewer.get('areaChair', False):
                 ## the reviewer is not AC
                 num_excluded += 1
-                reviewer_scores[:, j] = -1.02e5
+                reviewer_scores[:, j] -= 130
             else:
                 ## the reviewer is an AC:
                 num_included += 1
@@ -485,7 +485,7 @@ def main():
                             False) or reviewer.get('areaChair', False):
                 ## the reviewer is an SAC or AC
                 num_excluded += 1
-                reviewer_scores[:, j] = -1.03e5
+                reviewer_scores[:, j] -= 130
             else:
                 ## the reviewer is a reviewer
                 num_included += 1
@@ -541,7 +541,7 @@ def main():
 
         # If the paper and the reviewers are not in the same track, the
         # reviewer_score is -1e5
-        reviewer_scores = np.where(mask == 1, reviewer_scores, -1.04e5)
+        reviewer_scores = np.where(mask == 1, reviewer_scores, reviewer_scores-150)
         print(
             f'Applying track constraints for {len(rtr)} tracks',
             file=sys.stderr
