@@ -705,7 +705,7 @@ def main():
             same_track = True
             for idx in assigned_reviewers:
                 username = reviewer_data[idx]['startUsername']
-                name = reviewer_data[idx]['name']
+                name = reviewer_data[idx]['names'][0]
                 name = f"{name} ({username})"
                 score = round(reviewer_scores[i][idx], 4)
                 track_submission_info += [name, score]
@@ -716,7 +716,7 @@ def main():
                     same_track = same_track and (track in set(reviewer_data[idx]['tracks']))
             for idx in similar_reviewers:
                 username = reviewer_data[idx]['startUsername']
-                name = reviewer_data[idx]['name']
+                name = reviewer_data[idx]['names'][0]
                 name = f"{name} ({username})"
                 score = round(reviewer_scores[i][idx], 4)
                 track_submission_info += [name, score]
