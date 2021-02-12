@@ -4,15 +4,16 @@ import json
 import os
 import re
 import sys
+import warnings
 import cvxpy as cp
 import numpy as np
 import pandas as pd
 from collections import defaultdict
-from models import load_model
-from model_utils import Example, unk_string
 from sacremoses import MosesTokenizer
-from suggest_utils import (
-    calc_reviewer_db_mapping, print_text_report, print_progress
+from .model_utils import Example, unk_string
+from .models import load_model
+from .suggest_utils import (
+    calc_reviewer_db_mapping, print_progress, print_text_report
 )
 
 BATCH_SIZE = 128
@@ -90,7 +91,8 @@ def calc_aggregate_reviewer_score(rdb, all_scores, operator='max'):
         scores = all_scores[i]
         INVALID_SCORE = 0
         # slow -- 2-3 secs
-        scored_rdb = rdb * scores.reshape((len(scores), 1)) + (1 - rdb) * INVALID_SCORE
+        scored_rdb = rdb * scores.reshape((len(scores), 1)
+                                         ) + (1 - rdb) * INVALID_SCORE
         if operator == 'max':
             agg[i] = np.amax(scored_rdb, axis=0)
         elif operator.startswith('weighted_top'):
@@ -131,21 +133,19 @@ def create_suggested_assignment(
     num_pap, num_rev = reviewer_scores.shape
     if num_rev * max_papers_per_reviewer < num_pap * reviews_per_paper:
         raise ValueError(
-            f'There are not enough reviewers ({num_rev}) review all the papers'
-            f' ({num_pap}) given a constraint of {reviews_per_paper} reviews'
-            f' per paper and {max_papers_per_reviewer} reviews per reviewer'
+            f"There are not enough reviewers ({num_rev}) review all the papers"
+            f" ({num_pap}) given a constraint of {reviews_per_paper} reviews"
+            f" per paper and {max_papers_per_reviewer} reviews per reviewer"
         )
-    '''
     if num_rev * min_papers_per_reviewer > num_pap * reviews_per_paper:
         raise ValueError(
-            f'There are too many reviewers ({num_rev}) to review all the papers'
-            f' ({num_pap}) given a constraint of {reviews_per_paper} reviews'
-            f' per paper and a minimum of {min_papers_per_reviewer} reviews per'
-            ' reviewer'
+            f"There are too many reviewers ({num_rev}) to review all the papers"
+            f" ({num_pap}) given a constraint of {reviews_per_paper} reviews"
+            f" per paper and a minimum of {min_papers_per_reviewer} reviews per"
+            " reviewer"
         )
-    '''
     if anonymity_multiplier < 1.0:
-        raise ValueError(f'anonymity_multiplier must be >= 1.0')
+        raise ValueError(f"anonymity_multiplier must be >= 1.0")
     assignment = cp.Variable(shape=reviewer_scores.shape, boolean=True)
     if not quotas:
         maxrev_constraint = cp.sum(
@@ -158,8 +158,8 @@ def create_suggested_assignment(
             max_papers[j] = q
             if q > max_papers_per_reviewer:
                 print(
-                    f'WARNING setting max_papers to {q} exceeds default value'
-                    f' of {max_papers_per_reviewer}'
+                    f"WARNING setting max_papers to {q} exceeds default value"
+                    f" of {max_papers_per_reviewer}"
                 )
         maxrev_constraint = cp.sum(
             assignment, axis=0
@@ -225,10 +225,9 @@ def main():
         "--bid_file",
         type=str,
         default=None,
-        help=
-        "A file containing numpy array of bids"
-        " (0 = COI, 1 = no, 2 = maybe, 3 = yes)."
-        + " Each row corresponds to a paper (line in submission_file) and each"
+        help="A file containing numpy array of bids"
+        " (0 = COI, 1 = no, 2 = maybe, 3 = yes)." +
+        " Each row corresponds to a paper (line in submission_file) and each"
         " column corresponds to a reviewer (line in reviewer_file). This will"
         " be used to remove COIs, so just '0' and '3' is fine as well."
     )
@@ -262,8 +261,7 @@ def main():
     )
     parser.add_argument(
         "--load_aggregate_matrix",
-        help=
-        "A filename for where to load the cached reviewer-paper aggregate"
+        help="A filename for where to load the cached reviewer-paper aggregate"
         " matrix"
     )
     parser.add_argument(
@@ -412,8 +410,10 @@ def main():
     ) if args.bid_file else None
     if cois is not None:
         num_cois = np.sum(cois)
-        print(f'Applying {num_cois} COIs', file=sys.stderr)
-        reviewer_scores = np.where(cois == 0, reviewer_scores, reviewer_scores-110)
+        print(f"Applying {num_cois} COIs", file=sys.stderr)
+        reviewer_scores = np.where(
+            cois == 0, reviewer_scores, reviewer_scores - 110
+        )
 
     # Part 3(b): Load reviewer specific quotas; use quotas as constraints to the
     # CP problem
@@ -450,15 +450,19 @@ def main():
 
         for i, line in quota_table.iterrows():
             u, q = line['Username'], line['QuotaForReview']
+            if args.area_chairs:
+                num_tracks = len(line['ac_tracks'])
+            else:
+                num_tracks = len(line('tracks'))
             idx = username_to_idx.get(u)
             if idx != None:
-                quotas[idx] = int(q)
+                quotas[idx] = int(q) // num_tracks
             else:
                 raise ValueError(
-                    f'Reviewer account {u} in quota file not found in reviewer'
-                    ' database'
+                    f"Reviewer account {u} in quota file not found in reviewer"
+                    " database"
                 )
-        print(f'Set {len(quotas)} reviewer quotas', file=sys.stderr)
+        print(f"Set {len(quotas)} reviewer quotas", file=sys.stderr)
 
     # Part 3(c): Adjust reviewer_scores #2: based on ACs
     # If --area_chairs is specified, only ACs get papers.
@@ -471,27 +475,25 @@ def main():
     num_excluded = num_included = 0
     for j, reviewer in enumerate(reviewer_data):
         if args.area_chairs:
-            ### only ACs will get paper assignments:
+            # Only ACs will get paper assignments:
             if not reviewer.get('areaChair', False):
-                ## the reviewer is not AC
+                # The reviewer is not AC
                 num_excluded += 1
-                reviewer_scores[:, j] -= 150
             else:
-                ## the reviewer is an AC:
+                # The reviewer is an AC:
                 num_included += 1
         else:
-            ### SACs and ACs will not get assignments
+            # SACs and ACs will not get assignments
             if reviewer.get('seniorAreaChair',
                             False) or reviewer.get('areaChair', False):
-                ## the reviewer is an SAC or AC
+                # The reviewer is an SAC or AC
                 num_excluded += 1
-                reviewer_scores[:, j] -= 150
             else:
-                ## the reviewer is a reviewer
+                # The reviewer is a reviewer
                 num_included += 1
 
     print(
-        f'Excluded {num_excluded} reviewers/chairs, leaving {num_included}',
+        f"Excluded {num_excluded} reviewers/chairs, leaving {num_included}",
         file=sys.stderr
     )
 
@@ -499,53 +501,50 @@ def main():
     # tracks match the paper track
     # --------------------------------------------------------------------------
 
+    optimization_problems = {}
+    problem_papers = defaultdict(list)
+    problem_reviewers = defaultdict(list)
+    problem_quotas = defaultdict(dict)
+
     if args.track:
         # Index the papers and reviewers by track
-        track_papers = defaultdict(list)
-        track_reviewers = defaultdict(list)
-        for j, reviewer in enumerate(reviewer_data):
+        for i, reviewer in enumerate(reviewer_data):
             if args.area_chairs:
                 track_list = reviewer['ac_tracks']
             else:
                 track_list = reviewer['tracks']
             if len(track_list) > 1:
-                warnings.warn("x is in multiple tracks")
+                warnings.warn(f"{reviewer['names'][0]} is in multiple tracks")
             for track in track_list:
-                track_reviewers[track].append(j)
+                local_index = len(problem_reviewers[track])
+                problem_reviewers[track].append(i)
+                problem_quotas[track][local_index] = quotas[i]
         for i, submission in enumerate(submissions):
             if submission['track']:
-                track_papers[submission['track']].append(i)
+                problem_papers[submission['track']].append(i)
             else:
                 raise ValueError(
-                    f'Submission {submission["startSubmissionId"]} has no track' 
-                    ' assigned'
+                    f"Submission {submission['startSubmissionId']} has no track"
+                    " assigned"
                 )
+    else:
+        for i, reviewer in enumerate(reviewer_data):
+            if args.area_chairs:
+                if reviewer['areaChair']:
+                    local_index = len(problem_reviewers['all_tracks'])
+                    problem_reviewers['all_tracks'].append(i)
+                    problem_quotas['all_tracks'][local_index] = quotas[i]
+            else:
+                if not (reviewer['areaChair'] or reviewer['seniorAreaChair']):
+                    local_index = len(problem_reviewers['all_tracks'])
+                    problem_reviewers['all_tracks'].append(i)
+                    problem_quotas['all_tracks'][local_index] = quotas[i]
+        problem_papers['all_tracks'] = [i for i in range(len(submissions))]
 
-        ptr = set(track_papers.keys())
-        ptr.add('Multidisciplinary and AC COI')
-        rtr = set(track_reviewers.keys())
-        #if track_papers.keys() != track_reviewers.keys():
-        #    raise ValueError(
-        #        f'Tracks mismatch between submissions and reviewers'
-        #    )
-
-        # Mask defines valid reviewer paper pairings, mask[p,r]=1 means that
-        # paper p and reviewer r are in the same track.
-        mask = np.zeros_like(reviewer_scores)
-        for track in track_papers.keys():
-            ps = track_papers[track]
-            rs = track_reviewers[track]
-            for p in ps:
-                for r in rs:
-                    mask[p, r] = 1
-
-        # If the paper and the reviewers are not in the same track, the
-        # reviewer_score is -1e5
-        reviewer_scores = np.where(mask == 1, reviewer_scores, reviewer_scores-130)
-        print(
-            f'Applying track constraints for {len(rtr)} tracks',
-            file=sys.stderr
-        )
+    for problem in problem_papers.keys():
+        problem_matrix = reviewer_scores[problem_papers[problem], :]
+        problem_matrix = problem_matrix[:, problem_reviewers[problem]]
+        optimization_problems[problem] = problem_matrix
 
     # FIXME: should we weight short papers separately to long papers in the
     # review assignments? E.g., assume 5 long papers = 7 short papers, or is
@@ -554,88 +553,107 @@ def main():
     # --------------------------------------------------------------------------
     # Part 4: Calculate a reviewer assignment based on the constraints
     # --------------------------------------------------------------------------
+    assignments = {}
+    assignment_scores = {}
+    for problem in optimization_problems.keys():
+        final_scores = optimization_problems[problem]
 
-    final_scores = reviewer_scores
+        if args.anonymity_multiplier != 1.0:
+            print(
+                "Calculating initial assignment of reviewers for category"
+                f" {problem}",
+                file=sys.stderr
+            )
+            final_scores, assignment_score = create_suggested_assignment(
+                final_scores,
+                min_papers_per_reviewer=args.min_papers_per_reviewer,
+                max_papers_per_reviewer=args.max_papers_per_reviewer,
+                reviews_per_paper=args.reviews_per_paper,
+                quotas=problem_quotas[problem],
+                anonymity_multiplier=args.anonymity_multiplier
+            )
+            print(
+                "Done calculating initial assignment,"
+                f" total score: {assignment_score}",
+                file=sys.stderr
+            )
+            final_scores += np.random.random(final_scores.shape) * 1e-4
 
-    if args.anonymity_multiplier != 1.0:
-        print('Calculating initial assignment of reviewers', file=sys.stderr)
-        final_scores, assignment_score = create_suggested_assignment(
-            reviewer_scores,
+        print(
+            f"Calculating assignment of reviewers for category {problem}",
+            file=sys.stderr
+        )
+
+        # final_scores includes the penalties for COI. The constraints for CP
+        # itself are only the quota constraints (max/min # of papers a reviewer
+        # wants to review)
+        assignment, assignment_score = create_suggested_assignment(
+            final_scores,
             min_papers_per_reviewer=args.min_papers_per_reviewer,
             max_papers_per_reviewer=args.max_papers_per_reviewer,
             reviews_per_paper=args.reviews_per_paper,
-            quotas=quotas,
-            anonymity_multiplier=args.anonymity_multiplier
+            quotas=problem_quotas[problem]
         )
+
+        assignments[problem] = assignment
+        assignment_scores[problem] = assignment_score
+
         print(
-            'Done calculating initial assignment,'
-            f' total score: {assignment_score}',
+            f"Done calculating assignment. Total score: {assignment_score}",
             file=sys.stderr
         )
-        final_scores += np.random.random(final_scores.shape) * 1e-4
 
-    print('Calculating assignment of reviewers', file=sys.stderr)
+        # ----------------------------------------------------------------------
+        # Part 5: Print out the results
+        # ----------------------------------------------------------------------
 
-    # final_scores includes the constraints from COI, AC assignments, and track
-    # match. The constraints for CP itself are only the quota constraints
-    # (max/min # of papers a reviewer wants to review)
-    assignment, assignment_score = create_suggested_assignment(
-        final_scores,
-        min_papers_per_reviewer=args.min_papers_per_reviewer,
-        max_papers_per_reviewer=args.max_papers_per_reviewer,
-        reviews_per_paper=args.reviews_per_paper,
-        quotas=quotas
-    )
+        file_base, file_extension = (os.path.splitext(args.suggestion_file)[:2])
+        alphanum_category = '-'.join(re.split(r'[\W,:]+', problem))
+        filename = f'{file_base}_{alphanum_category}{file_extension}'
 
-    if args.save_assignment_matrix:
-        np.save(args.save_assignment_matrix, assignment)
+        with open(filename, 'w') as outf:
+            for i, global_index in enumerate(problem_papers[problem]):
+                scores = mat[global_index]
+                best_idxs = scores.argsort()[-5:][::-1]
+                best_reviewers = (
+                    reviewer_scores[global_index].argsort()[-5:][::-1]
+                )
+                assigned_reviewers = (
+                    assignment[global_index].argsort()[-args.reviews_per_paper:]
+                    [::-1]
+                )
 
-    print(
-        f'Done calculating assignment, total score: {assignment_score}',
-        file=sys.stderr
-    )
+                ret_dict = dict(submissions[global_index])
+                ret_dict['similarPapers'] = [
+                    {
+                        'title': db[idx]['title'],
+                        'paperAbstract': db[idx]['paperAbstract'],
+                        'score': scores[idx]
+                    } for idx in best_idxs
+                ]
+                ret_dict['topSimReviewers'] = []
+                ret_dict['assignedReviewers'] = []
+                for idx in best_reviewers:
+                    next_dict = dict(reviewer_data[idx])
+                    next_dict['score'] = reviewer_scores[i][idx]
+                    ret_dict['topSimReviewers'].append(next_dict)
+                for idx in assigned_reviewers:
+                    next_dict = dict(reviewer_data[idx])
+                    next_dict['score'] = reviewer_scores[i][idx]
+                    ret_dict['assignedReviewers'].append(next_dict)
 
-    # --------------------------------------------------------------------------
-    # Part 5: Print out the results
-    # --------------------------------------------------------------------------
+                if args.output_type == 'json':
+                    print(json.dumps(ret_dict), file=outf)
+                elif args.output_type == 'text':
+                    print_text_report(ret_dict, file=outf)
+                else:
+                    raise ValueError(f'Illegal output_type {args.output_type}')
 
-    with open(args.suggestion_file, 'w') as outf:
-        for i, query in enumerate(submissions):
-            scores = mat[i]
-            best_idxs = scores.argsort()[-5:][::-1]
-            best_reviewers = reviewer_scores[i].argsort()[-5:][::-1]
-            assigned_reviewers = assignment[i].argsort(
-            )[-args.reviews_per_paper:][::-1]
-
-            ret_dict = dict(query)
-            ret_dict['similarPapers'] = [
-                {
-                    'title': db[idx]['title'],
-                    'paperAbstract': db[idx]['paperAbstract'],
-                    'score': scores[idx]
-                } for idx in best_idxs
-            ]
-            ret_dict['topSimReviewers'], ret_dict['assignedReviewers'] = [], []
-            for idx in best_reviewers:
-                next_dict = dict(reviewer_data[idx])
-                next_dict['score'] = reviewer_scores[i][idx]
-                ret_dict['topSimReviewers'].append(next_dict)
-            for idx in assigned_reviewers:
-                next_dict = dict(reviewer_data[idx])
-                next_dict['score'] = reviewer_scores[i][idx]
-                ret_dict['assignedReviewers'].append(next_dict)
-
-            if args.output_type == 'json':
-                print(json.dumps(ret_dict), file=outf)
-            elif args.output_type == 'text':
-                print_text_report(ret_dict, file=outf)
-            else:
-                raise ValueError(f'Illegal output_type {args.output_type}')
-
-    print(
-        f'Done creating suggestions, written to {args.suggestion_file}',
-        file=sys.stderr
-    )
+        print(
+            f"Done creating suggestions for category {problem}, written to"
+            f" {filename}",
+            file=sys.stderr
+        )
 
     # --------------------------------------------------------------------------
     # Part 6 (optional): Print out the results in more human-readable
@@ -647,15 +665,11 @@ def main():
     # with the minimum assignment information
     if args.assignment_spreadsheet:
 
-        spreadsheet_base, spreadsheet_extension = (
-            os.path.splitext(args.assignment_spreadsheet)[:2]
-        )
-        
         # Create a list of submissions both by track and globally
         track_assignments = defaultdict(list)
         global_assignments = []
-        
-        # Form the csv headers such that both spreadsheets will contain the id 
+
+        # Form the csv headers such that both spreadsheets will contain the id
         # of the submission and the username of each assigned reviewer/AC
         track_header_info = ['ID']
         global_header_info = ['ID']
@@ -679,15 +693,15 @@ def main():
                 reviewer_field = f'Similar reviewer {x}'
                 score_field = f'Similar reviewer {x} score'
                 track_header_info += [reviewer_field, score_field]
-        
+
         global_header_info += ['Track', 'Assigned within same track']
 
         # The by-track spreadsheet will also show SACs and ACs with COIs
         track_header_info += ['SACs with COI', 'ACs with COI']
-        
+
         # Loop over the submissions
         for i, submission in enumerate(submissions):
-            
+
             # Get the track and submission id for each
             track_submission_info = []
             global_submission_info = []
@@ -695,12 +709,21 @@ def main():
             submission_idx = submission['startSubmissionId']
             track_submission_info.append(submission_idx)
             global_submission_info.append(submission_idx)
-            
+
             # Use the scores to get the index for each assigned reviewer, and
             # get their username for the output spreadsheet
-            assigned_reviewers = (
-                assignment[i].argsort()[-args.reviews_per_paper:][::-1]
-            )
+            if args.track:
+                category_idx = problem_papers.index(i)
+                assigned_reviewers = (
+                    assignments[track][category_idx].argsort()
+                    [-args.reviews_per_paper:][::-1]
+                )
+            else:
+                assigned_reviewers = (
+                    assignments['all_tracks'][i].argsort()
+                    [-args.reviews_per_paper:][::-1]
+                )
+
             similar_reviewers = reviewer_scores[i].argsort()[-3:][::-1]
             same_track = True
             for idx in assigned_reviewers:
@@ -711,19 +734,23 @@ def main():
                 track_submission_info += [name, score]
                 global_submission_info += [name, score]
                 if args.area_chairs:
-                    same_track = same_track and (track in set(reviewer_data[idx]['ac_tracks']))
+                    same_track = same_track and (
+                        track in set(reviewer_data[idx]['ac_tracks'])
+                    )
                 else:
-                    same_track = same_track and (track in set(reviewer_data[idx]['tracks']))
+                    same_track = same_track and (
+                        track in set(reviewer_data[idx]['tracks'])
+                    )
             for idx in similar_reviewers:
                 username = reviewer_data[idx]['startUsername']
                 name = reviewer_data[idx]['names'][0]
                 name = f"{name} ({username})"
                 score = round(reviewer_scores[i][idx], 4)
                 track_submission_info += [name, score]
-            
+
             # Also append the track name to the global submission info
             global_submission_info += [track, same_track]
-            
+
             # Get the COIs for the submission, and filter out all those that are
             # SACs or ACs
             submission_cois = cois[i]
@@ -733,16 +760,18 @@ def main():
             ]
             coi_sacs = [
                 reviewer_data[idx]['startUsername']
-                for idx in coi_idx if reviewer_data[idx]['seniorAreaChair']
+                for idx in coi_idx if reviewer_data[idx]['seniorAreaChair'] and
+                track in reviewer_data[idx]['sac_tracks']
             ]
             coi_acs = [
                 reviewer_data[idx]['startUsername']
-                for idx in coi_idx if reviewer_data[idx]['areaChair']
+                for idx in coi_idx if reviewer_data[idx]['areaChair'] and
+                track in reviewer_data[idx]['ac_tracks']
             ]
             track_submission_info.append('; '.join(coi_sacs))
             track_submission_info.append('; '.join(coi_acs))
-            
-            # Append the submission data to both the 
+
+            # Append the submission data to both the
             track_assignments[track].append(track_submission_info)
             global_assignments.append(global_submission_info)
 
@@ -758,9 +787,12 @@ def main():
 
         # For each track, create a file as a csv spreadsheet for all the track
         # submissions and their reviewer assignments
+        file_base, file_extension = (
+            os.path.splitext(args.assignment_spreadsheet)[:2]
+        )
         for i, track in enumerate(track_assignments.keys()):
             alphanum_track = '-'.join(re.split(r'[\W,:]+', track))
-            filename = f'{spreadsheet_base}_{alphanum_track}{spreadsheet_extension}'
+            filename = f'{file_base}_{alphanum_track}{file_extension}'
             with open(filename, 'w+') as f:
                 writer = csv.writer(
                     f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL
@@ -768,6 +800,7 @@ def main():
                 writer.writerow(track_header_info)
                 for entry in track_assignments[track]:
                     writer.writerow(entry)
+
 
 if __name__ == "__main__":
     main()
