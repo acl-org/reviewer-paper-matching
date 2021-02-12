@@ -10,9 +10,9 @@ import numpy as np
 import pandas as pd
 from collections import defaultdict
 from sacremoses import MosesTokenizer
-from .model_utils import Example, unk_string
-from .models import load_model
-from .suggest_utils import (
+from model_utils import Example, unk_string
+from models import load_model
+from suggest_utils import (
     calc_reviewer_db_mapping, print_progress, print_text_report
 )
 
@@ -450,13 +450,16 @@ def main():
 
         for i, line in quota_table.iterrows():
             u, q = line['Username'], line['QuotaForReview']
-            if args.area_chairs:
-                num_tracks = len(line['ac_tracks'])
-            else:
-                num_tracks = len(line('tracks'))
             idx = username_to_idx.get(u)
+            if args.area_chairs:
+                num_tracks = len(reviewer_data[idx]['ac_tracks'])
+            else:
+                num_tracks = len(reviewer_data[idx]['tracks'])
             if idx != None:
-                quotas[idx] = int(q) // num_tracks
+                if num_tracks > 0:
+                    quotas[idx] = int(q) // num_tracks
+                else:
+                    quotas[idx] = int(q)
             else:
                 raise ValueError(
                     f"Reviewer account {u} in quota file not found in reviewer"
@@ -518,7 +521,8 @@ def main():
             for track in track_list:
                 local_index = len(problem_reviewers[track])
                 problem_reviewers[track].append(i)
-                problem_quotas[track][local_index] = quotas[i]
+                if args.quota_file:
+                    problem_quotas[track][local_index] = quotas[i]
         for i, submission in enumerate(submissions):
             if submission['track']:
                 problem_papers[submission['track']].append(i)
@@ -533,12 +537,14 @@ def main():
                 if reviewer['areaChair']:
                     local_index = len(problem_reviewers['all_tracks'])
                     problem_reviewers['all_tracks'].append(i)
-                    problem_quotas['all_tracks'][local_index] = quotas[i]
+                    if args.quota_file:
+                        problem_quotas['all_tracks'][local_index] = quotas[i]
             else:
                 if not (reviewer['areaChair'] or reviewer['seniorAreaChair']):
                     local_index = len(problem_reviewers['all_tracks'])
                     problem_reviewers['all_tracks'].append(i)
-                    problem_quotas['all_tracks'][local_index] = quotas[i]
+                    if args.quota_file:
+                        problem_quotas['all_tracks'][local_index] = quotas[i]
         problem_papers['all_tracks'] = [i for i in range(len(submissions))]
 
     for problem in problem_papers.keys():
@@ -602,6 +608,8 @@ def main():
             f"Done calculating assignment. Total score: {assignment_score}",
             file=sys.stderr
         )
+        if assignment is None:
+            warnings.warn(f"No solution found for category {problem}", UserWarning)
 
         # ----------------------------------------------------------------------
         # Part 5: Print out the results
@@ -618,11 +626,13 @@ def main():
                 best_reviewers = (
                     reviewer_scores[global_index].argsort()[-5:][::-1]
                 )
-                assigned_reviewers = (
-                    assignment[global_index].argsort()[-args.reviews_per_paper:]
-                    [::-1]
-                )
-
+                try:
+                    assigned_reviewers = (
+                        assignment[i].argsort()[-args.reviews_per_paper:]
+                        [::-1]
+                    )
+                except:
+                    assigned_reviewers = []
                 ret_dict = dict(submissions[global_index])
                 ret_dict['similarPapers'] = [
                     {
@@ -635,11 +645,11 @@ def main():
                 ret_dict['assignedReviewers'] = []
                 for idx in best_reviewers:
                     next_dict = dict(reviewer_data[idx])
-                    next_dict['score'] = reviewer_scores[i][idx]
+                    next_dict['score'] = reviewer_scores[global_index][idx]
                     ret_dict['topSimReviewers'].append(next_dict)
                 for idx in assigned_reviewers:
                     next_dict = dict(reviewer_data[idx])
-                    next_dict['score'] = reviewer_scores[i][idx]
+                    next_dict['score'] = reviewer_scores[global_index][idx]
                     ret_dict['assignedReviewers'].append(next_dict)
 
                 if args.output_type == 'json':
@@ -650,8 +660,7 @@ def main():
                     raise ValueError(f'Illegal output_type {args.output_type}')
 
         print(
-            f"Done creating suggestions for category {problem}, written to"
-            f" {filename}",
+            f"Done creating suggestions, written to {filename}\n",
             file=sys.stderr
         )
 
@@ -713,34 +722,45 @@ def main():
             # Use the scores to get the index for each assigned reviewer, and
             # get their username for the output spreadsheet
             if args.track:
-                category_idx = problem_papers.index(i)
-                assigned_reviewers = (
-                    assignments[track][category_idx].argsort()
-                    [-args.reviews_per_paper:][::-1]
-                )
+                category_idx = problem_papers[track].index(i)
+                try:
+                    assigned_reviewers = (
+                        assignments[track][category_idx].argsort()
+                        [-args.reviews_per_paper:][::-1]
+                    )
+                except:
+                    assigned_reviewers = []
             else:
-                assigned_reviewers = (
-                    assignments['all_tracks'][i].argsort()
-                    [-args.reviews_per_paper:][::-1]
-                )
+                try:
+                    assigned_reviewers = (
+                        assignments['all_tracks'][i].argsort()
+                        [-args.reviews_per_paper:][::-1]
+                    )
+                except:
+                    assigned_reviewers = []
 
             similar_reviewers = reviewer_scores[i].argsort()[-3:][::-1]
             same_track = True
-            for idx in assigned_reviewers:
-                username = reviewer_data[idx]['startUsername']
-                name = reviewer_data[idx]['names'][0]
-                name = f"{name} ({username})"
-                score = round(reviewer_scores[i][idx], 4)
-                track_submission_info += [name, score]
-                global_submission_info += [name, score]
-                if args.area_chairs:
-                    same_track = same_track and (
-                        track in set(reviewer_data[idx]['ac_tracks'])
-                    )
-                else:
-                    same_track = same_track and (
-                        track in set(reviewer_data[idx]['tracks'])
-                    )
+            if len(assigned_reviewers) == 0:
+                for i in range(args.reviews_per_paper):
+                    track_submission_info += ['', '']
+                    global_submission_info += ['', '']
+            else:
+                for idx in assigned_reviewers:
+                    username = reviewer_data[idx]['startUsername']
+                    name = reviewer_data[idx]['names'][0]
+                    name = f"{name} ({username})"
+                    score = round(reviewer_scores[i][idx], 4)
+                    track_submission_info += [name, score]
+                    global_submission_info += [name, score]
+                    if args.area_chairs:
+                        same_track = same_track and (
+                            track in set(reviewer_data[idx]['ac_tracks'])
+                        )
+                    else:
+                        same_track = same_track and (
+                            track in set(reviewer_data[idx]['tracks'])
+                        )
             for idx in similar_reviewers:
                 username = reviewer_data[idx]['startUsername']
                 name = reviewer_data[idx]['names'][0]
