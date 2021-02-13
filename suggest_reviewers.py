@@ -840,7 +840,7 @@ def main():
                         [reviewer_local_id], 4
                     )
                     track_submission_info += [name, score]
-                    global_submission_info += [name, score]
+                    global_submission_info += [username, score]
                     if args.area_chairs:
                         track_list = set(
                             reviewer_data[reviewer_global_id]['ac_tracks']
