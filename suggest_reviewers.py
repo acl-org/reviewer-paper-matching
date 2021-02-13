@@ -699,8 +699,8 @@ def main():
                 problem = track
             category_idx = problem_papers[problem].index(i)
             scores = mat[i]
-            best_idxs = scores.argsort()[-5:][::-1]
-            best_reviewers = (reviewer_scores[i].argsort()[-5:][::-1])
+            best_idxs = scores.argsort()[-args.num_similar_to_list:][::-1]
+            best_reviewers = (reviewer_scores[i].argsort()[-args.num_similar_to_list:][::-1])
             try:
                 assigned_reviewers = (
                     assignments[problem][category_idx].argsort()
