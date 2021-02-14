@@ -104,6 +104,16 @@ def exclude_positions(reviewers, reviewer_scores, area_chairs=False):
     return reviewer_scores, num_included, num_excluded
 
 
+def get_track_sacs(reviewers):
+    track_sacs = defaultdict(set)
+    for reviewer in reviewers:
+        sac_tracks = reviewer['sac_tracks']
+        if len(sac_tracks) > 0:
+            for track in sac_tracks:
+                track_sacs[track].add(reviewer['startUsername'])
+    return track_sacs
+
+
 def split_by_subproblem(
     reviewers,
     submissions,
@@ -610,6 +620,7 @@ def main():
         f"Excluded {num_excluded} reviewers/chairs, leaving {num_included}",
         file=sys.stderr
     )
+    track_sacs = get_track_sacs(reviewer_data)
 
     # --------------------------------------------------------------------------
     # Part 4: Break the optimization into subproblems
@@ -783,6 +794,8 @@ def main():
         # The by-track spreadsheet will also show SACs and ACs with COIs
         track_header_info += ['SACs with COI', 'ACs with COI']
 
+        coi_header_info = track_header_info + ['Original track']
+
         problem = 'all_tracks'
 
         # Loop over the submissions
@@ -886,6 +899,13 @@ def main():
             track_submission_info.append('; '.join(coi_sacs))
             track_submission_info.append('; '.join(coi_acs))
 
+            # If all track SACs have a COI with the submission, move it to the
+            # separate COI track
+            if set(coi_sacs) == track_sacs[track]:
+                track_submission_info.append(track)
+                track = 'COI'
+                global_submission_info[-2] = track
+
             # Append the submission data to both the
             track_assignments[track].append(track_submission_info)
             global_assignments.append(global_submission_info)
@@ -912,7 +932,10 @@ def main():
                 writer = csv.writer(
                     f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL
                 )
-                writer.writerow(track_header_info)
+                if track == 'COI':
+                    writer.writerow(coi_header_info)
+                else:
+                    writer.writerow(track_header_info)
                 for entry in track_assignments[track]:
                     writer.writerow(entry)
 
