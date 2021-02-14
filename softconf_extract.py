@@ -162,14 +162,6 @@ def main():
         csv_reader = csv.reader(f, delimiter=',')
         profiles_csv = list(csv_reader)
 
-    if args.reject_out:
-        with open(args.reject_out, 'w') as f:
-            pass
-
-    if args.non_reviewers_out:
-        with open(args.non_reviewers_out, 'w') as f:
-            pass
-
     colnames = [
         'Username', 'Email', 'First Name', 'Last Name', 'Semantic Scholar ID',
         'Roles'
@@ -181,13 +173,8 @@ def main():
     last_field = max([ucol, ecol, fcol, lcol, scol, rcol, Rcol, Ecol])
     reviewers, reviewer_map, profile_map = [], {}, {}
 
-    if args.multi_track_reviewers_out:
-        with open(args.multi_track_reviewers_out, 'w+') as mtrf:
-            print(
-                "start_ID, email, first_name, last_name, reviewer_tracks,"
-                " ac_tracks, sac_tracks, softconf_role_string",
-                file=mtrf
-            )
+    multi_track_reviewer_data = []
+    non_reviewer_data = []
 
     # Loop through reviewer and author profiles
     with open(args.reviewer_out, 'w') as f:
@@ -279,24 +266,20 @@ def main():
                 reviewer_map[line[ecol]] = len(reviewers)
                 reviewers.append(rev_data)
                 if args.multi_track_reviewers_out and num_tracks > 1:
-                    info = [
-                        line[ucol], line[ecol], line[fcol], line[lcol],
-                        '; '.join(tracks), '; '.join(ac_tracks),
-                        '; '.join(sac_tracks), _role
-                    ]
-                    with open(args.multi_track_reviewers_out, 'a+') as mtrf:
-                        writer = csv.writer(
-                            mtrf,
-                            delimiter=',',
-                            quotechar='"',
-                            quoting=csv.QUOTE_MINIMAL
-                        )
-                        writer.writerow(info)
-            
+                    data = {
+                        'start_id': line[ucol],
+                        'email': line[ecol],
+                        'name': f'{line[fcol]} {line[lcol]}',
+                        'reviewer_tracks': tracks,
+                        'ac_tracks': ac_tracks,
+                        'sac_tracks': sac_tracks,
+                        'softconf_role_string': _role
+                    }
+                    multi_track_reviewer_data.append(data)
             elif args.non_reviewers_out:
                 track = _role
                 emergency = ('Yes' in line[Ecol] and 'no' == line[Rcol])
-                rev_data = {
+                data = {
                     'name': f'{line[fcol]} {line[lcol]}',
                     'ids': [s2id],
                     'startUsername': line[ucol],
@@ -305,10 +288,19 @@ def main():
                     'tracks': track,
                     'seniorAreaChair': is_senior_area_chair
                 }
-                with open(args.non_reviewers_out, 'a+') as nrf:
-                    print(json.dumps(rev_data), file=nrf)
+                non_reviewer_data.append(data)
 
             # FIXME: experience / graduation year is also useful
+
+    if args.multi_track_reviewers_out:
+        with open(args.multi_track_reviewers_out, 'w+') as f:
+            for line in multi_track_reviewer_data:
+                print(json.dumps(line), file=f)
+
+    if args.non_reviewers_out:
+        with open(args.non_reviewers_out, 'w+') as f:
+            for line in non_reviewer_data:
+                print(json.dumps(line), file=f)
 
     # --------------------------------------------------------------------------
     # Process the submission csv file and submission/reviewer match scores,
@@ -381,6 +373,7 @@ def main():
     delim_re = re.compile(r'(?:, | and )')
     not_found = set()
     submission_kept = []
+    reject_data = []
     with open(args.submission_out, 'w') as f:
         for i, line in enumerate(submissions_csv[1:]):
             author_emails = line[ecol].split('; ')
@@ -450,14 +443,19 @@ def main():
                 }
                 print(json.dumps(data), file=f)
                 submission_kept.append(i)
-            elif args.reject_out:
+            else:
                 data = {
                     "startSubmissionId": line[scol],
                     'track': track,
-                    'title': line[tcol]
+                    'title': line[tcol],
+                    'status': line[stcol]
                 }
-                with open(args.reject_out, 'a+') as rf:
-                    print(json.dumps(data), file=rf)
+                reject_data.append(data)
+            
+    if args.reject_out:
+        with open(args.reject_out, 'w') as f:
+            for line in reject_data:
+                print(json.dumps(line), file=f)
 
     # Keep the rows of the bid matrix that correspond to to the submissions that
     # were not already rejected and write to the bid_out file
