@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sys
+import time
 import warnings
 import cvxpy as cp
 import numpy as np
@@ -517,6 +518,8 @@ def main():
     # reviewers
     # --------------------------------------------------------------------------
 
+    data_load_start_time = time.time()
+
     with open(args.submission_file, "r") as f:
         submissions = [json.loads(x) for x in f]
         submission_abs = [x['paperAbstract'] for x in submissions]
@@ -543,6 +546,11 @@ def main():
     db_abs = [x['paperAbstract'] for x in db]
     rdb = calc_reviewer_db_mapping(reviewer_data, db, author_field='authors')
 
+    data_load_end_time = time.time()
+    data_load_time = round((data_load_end_time - data_load_start_time) / 60, 2)
+    print(f"Time loading and preprocessing data: {data_load_time} minutes", file=sys.stderr)
+    similarity_matrix_start_time = time.time()
+
     # Calculate or load paper similarity matrix
     if args.load_paper_matrix:
         mat = np.load(args.load_paper_matrix)
@@ -558,6 +566,11 @@ def main():
         if args.save_paper_matrix:
             np.save(args.save_paper_matrix, mat)
 
+    similarity_matrix_end_time = time.time()
+    similarity_matrix_time = round((similarity_matrix_end_time - similarity_matrix_start_time) / 60, 2)
+    print(f"Time calculating paper similarity matrix: {similarity_matrix_time} minutes", file=sys.stderr)
+    aggregation_start_time = time.time()
+
     # Calculate reviewer scores based on paper similarity scores
     if args.load_aggregate_matrix:
         reviewer_scores = np.load(args.load_aggregate_matrix)
@@ -572,6 +585,11 @@ def main():
         )
         if args.save_aggregate_matrix:
             np.save(args.save_aggregate_matrix, reviewer_scores)
+
+    aggregation_end_time = time.time()
+    aggregation_time = round((aggregation_end_time - aggregation_start_time) / 60, 2)
+    print(f"Time calculating aggregated similarity matrix: {aggregation_time} minutes", file=sys.stderr)
+    formulization_start_time = time.time()
 
     # --------------------------------------------------------------------------
     # Part 3: Adjust reviewer_scores based on COI, AC role; add quota
@@ -641,6 +659,11 @@ def main():
         )
     )
 
+    formulization_end_time = time.time()
+    formulization_time = round((formulization_end_time - formulization_start_time) / 60, 2)
+    print(f"Time formulating optimization problem: {formulization_time} minutes", file=sys.stderr)
+    optimization_start_time = time.time()
+
     # --------------------------------------------------------------------------
     # Part 5: Calculate a reviewer assignment based on the constraints
     # --------------------------------------------------------------------------
@@ -697,6 +720,10 @@ def main():
             warnings.warn(
                 f"No solution found for category {problem}", RuntimeWarning
             )
+
+    optimization_end_time = time.time()
+    optimization_time = round((optimization_end_time - optimization_start_time) / 60, 2)
+    print(f"Time calculating optimal assignment of papers: {optimization_time} minutes", file=sys.stderr)
 
     # --------------------------------------------------------------------------
     # Part 6: Print out the results in jsonl format
