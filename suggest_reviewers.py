@@ -356,6 +356,86 @@ def create_suggested_assignment(
     return assignment.value, assign_prob.value
 
 
+def parse_assignments(
+    submissions,
+    paper_similarity_matrix,
+    optimization_matrices,
+    problem_papers,
+    problem_reviewers,
+    problem_assignments,
+    by_track=False,
+    num_assigned=3,
+    num_similar=3
+):
+    """
+    TODO: Add a docstring
+    """
+    global_assignments = []
+    problem = 'all_tracks'
+    # Loop over the submissions
+    for submission_idx, submission in enumerate(submissions):
+
+        # Get the track and submission id for each
+        track = submission['track']
+        if by_track:
+            problem = track
+        submission_local_idx = problem_papers[problem].index(submission_idx)
+        start_idx = submission['startSubmissionId']
+
+        # Use the scores to get the index for each assigned reviewer, and
+        # get their username for the output spreadsheet
+        try:
+            assigned_reviewer_local_ids = (
+                problem_assignments[problem][submission_local_idx].argsort()
+                [-num_assigned:][::-1]
+            )
+        except:
+            assigned_reviewer_local_ids = []
+        assigned_reviewer_global_ids = [
+            problem_reviewers[problem][j] for j in assigned_reviewer_local_ids
+        ]
+        assigned_reviewer_scores = [
+            optimization_matrices[problem][submission_local_idx][reviewer_idx]
+            for reviewer_idx in assigned_reviewer_local_ids
+        ]
+
+        similar_reviewer_local_ids = (
+            optimization_matrices[problem][submission_local_idx].argsort()
+            [-num_similar:][::-1]
+        )
+        similar_reviewer_global_ids = [
+            problem_reviewers[problem][j] for j in similar_reviewer_local_ids
+        ]
+        similar_reviewer_scores = [
+            optimization_matrices[problem][submission_local_idx][reviewer_idx]
+            for reviewer_idx in similar_reviewer_local_ids
+        ]
+
+        # Get most similar papers
+        paper_sim_scores = paper_similarity_matrix[submission_idx]
+        similar_paper_global_ids = (
+            paper_sim_scores.argsort()[-num_similar:][::-1]
+        )
+        similar_paper_scores = [
+            paper_sim_scores[idx] for idx in similar_paper_global_ids
+        ]
+
+        assignment_data = {
+            'start_idx': start_idx,
+            'track': track,
+            'similar_paper_global_ids': similar_paper_global_ids,
+            'similar_paper_scores': similar_paper_scores,
+            'assigned_reviewer_global_ids': assigned_reviewer_global_ids,
+            'assigned_reviewer_scores': assigned_reviewer_scores,
+            'similar_reviewer_global_ids': similar_reviewer_global_ids,
+            'similar_reviewer_scores': similar_reviewer_scores
+        }
+
+        global_assignments.append(assignment_data)
+
+    return global_assignments
+
+
 def main():
     """
     TODO: add a docstring
@@ -548,7 +628,10 @@ def main():
 
     data_load_end_time = time.time()
     data_load_time = round((data_load_end_time - data_load_start_time) / 60, 2)
-    print(f"Time loading and preprocessing data: {data_load_time} minutes", file=sys.stderr)
+    print(
+        f"Time loading and preprocessing data: {data_load_time} minutes",
+        file=sys.stderr
+    )
     similarity_matrix_start_time = time.time()
 
     # Calculate or load paper similarity matrix
@@ -567,8 +650,14 @@ def main():
             np.save(args.save_paper_matrix, mat)
 
     similarity_matrix_end_time = time.time()
-    similarity_matrix_time = round((similarity_matrix_end_time - similarity_matrix_start_time) / 60, 2)
-    print(f"Time calculating paper similarity matrix: {similarity_matrix_time} minutes", file=sys.stderr)
+    similarity_matrix_time = round(
+        (similarity_matrix_end_time - similarity_matrix_start_time) / 60, 2
+    )
+    print(
+        "Time calculating paper similarity matrix:"
+        f" {similarity_matrix_time} minutes",
+        file=sys.stderr
+    )
     aggregation_start_time = time.time()
 
     # Calculate reviewer scores based on paper similarity scores
@@ -587,8 +676,14 @@ def main():
             np.save(args.save_aggregate_matrix, reviewer_scores)
 
     aggregation_end_time = time.time()
-    aggregation_time = round((aggregation_end_time - aggregation_start_time) / 60, 2)
-    print(f"Time calculating aggregated similarity matrix: {aggregation_time} minutes", file=sys.stderr)
+    aggregation_time = round(
+        (aggregation_end_time - aggregation_start_time) / 60, 2
+    )
+    print(
+        "Time calculating aggregated similarity matrix:"
+        f" {aggregation_time} minutes",
+        file=sys.stderr
+    )
     formulization_start_time = time.time()
 
     # --------------------------------------------------------------------------
@@ -660,15 +755,21 @@ def main():
     )
 
     formulization_end_time = time.time()
-    formulization_time = round((formulization_end_time - formulization_start_time) / 60, 2)
-    print(f"Time formulating optimization problem: {formulization_time} minutes", file=sys.stderr)
+    formulization_time = round(
+        (formulization_end_time - formulization_start_time) / 60, 2
+    )
+    print(
+        f"Time formulating optimization problem: {formulization_time} minutes",
+        file=sys.stderr
+    )
     optimization_start_time = time.time()
 
     # --------------------------------------------------------------------------
     # Part 5: Calculate a reviewer assignment based on the constraints
     # --------------------------------------------------------------------------
-    assignments = {}
-    assignment_scores = {}
+
+    problem_assignments = {}
+    problem_scores = {}
     for problem in optimization_problems.keys():
         final_scores = optimization_problems[problem]
 
@@ -709,8 +810,8 @@ def main():
             quotas=problem_quotas[problem]
         )
 
-        assignments[problem] = assignment
-        assignment_scores[problem] = assignment_score
+        problem_assignments[problem] = assignment
+        problem_scores[problem] = assignment_score
 
         print(
             f"Done calculating assignment. Total score: {assignment_score}",
@@ -722,47 +823,74 @@ def main():
             )
 
     optimization_end_time = time.time()
-    optimization_time = round((optimization_end_time - optimization_start_time) / 60, 2)
-    print(f"Time calculating optimal assignment of papers: {optimization_time} minutes", file=sys.stderr)
+    optimization_time = round(
+        (optimization_end_time - optimization_start_time) / 60, 2
+    )
+    print(
+        "Time calculating optimal assignment of papers:"
+        f" {optimization_time} minutes",
+        file=sys.stderr
+    )
 
     # --------------------------------------------------------------------------
-    # Part 6: Print out the results in jsonl format
+    # Part 6: Parse the assignments into a dictionary of reviewer IDs and other
+    # info for each submission
+    # --------------------------------------------------------------------------
+
+    global_assignments = parse_assignments(
+        submissions=submissions,
+        paper_similarity_matrix=mat,
+        optimization_matrices=optimization_problems,
+        problem_papers=problem_papers,
+        problem_reviewers=problem_reviewers,
+        problem_assignments=problem_assignments,
+        by_track=args.track,
+        num_assigned=args.reviews_per_paper,
+        num_similar=args.num_similar_to_list
+    )
+
+    # --------------------------------------------------------------------------
+    # Part 7: Print out the results in jsonl format
     # --------------------------------------------------------------------------
 
     with open(args.suggestion_file, 'w') as outf:
-        problem = 'all_tracks'
-        for i, submission in enumerate(submissions):
-            track = submission['track']
-            if args.track:
-                problem = track
-            category_idx = problem_papers[problem].index(i)
-            scores = mat[i]
-            best_idxs = scores.argsort()[-args.num_similar_to_list:][::-1]
-            best_reviewers = (reviewer_scores[i].argsort()[-args.num_similar_to_list:][::-1])
-            try:
-                assigned_reviewers = (
-                    assignments[problem][category_idx].argsort()
-                    [-args.reviews_per_paper:][::-1]
-                )
-            except:
-                assigned_reviewers = []
-            ret_dict = dict(submissions[i])
+        for submission_idx, submission in enumerate(global_assignments):
+
+            ret_dict = dict(submissions[submission_idx])
+
+            # Add information on the top similar papers
+            best_paper_info = zip(
+                submission['similar_paper_global_ids'],
+                submission['similar_paper_scores']
+            )
             ret_dict['similarPapers'] = [
                 {
                     'title': db[idx]['title'],
                     'paperAbstract': db[idx]['paperAbstract'],
-                    'score': scores[idx]
-                } for idx in best_idxs
+                    'score': score
+                } for idx, score in best_paper_info
             ]
+
+            # Add information on the top similar reviewers
             ret_dict['topSimReviewers'] = []
-            ret_dict['assignedReviewers'] = []
-            for idx in best_reviewers:
+            similar_reviewer_info = zip(
+                submission['similar_reviewer_global_ids'],
+                submission['similar_reviewer_scores']
+            )
+            for idx, score in similar_reviewer_info:
                 next_dict = dict(reviewer_data[idx])
-                next_dict['score'] = reviewer_scores[i][idx]
+                next_dict['score'] = score
                 ret_dict['topSimReviewers'].append(next_dict)
-            for idx in assigned_reviewers:
+
+            # Add information on the assigned reviewers
+            ret_dict['assignedReviewers'] = []
+            assigned_reviewer_info = zip(
+                submission['assigned_reviewer_global_ids'],
+                submission['assigned_reviewer_scores']
+            )
+            for idx, score in assigned_reviewer_info:
                 next_dict = dict(reviewer_data[idx])
-                next_dict['score'] = reviewer_scores[i][idx]
+                next_dict['score'] = score
                 ret_dict['assignedReviewers'].append(next_dict)
 
             if args.output_type == 'json':
@@ -778,7 +906,7 @@ def main():
     )
 
     # --------------------------------------------------------------------------
-    # Part 7 (optional): Print out the results in more human-readable
+    # Part 8 (optional): Print out the results in more human-readable
     # spreadsheets
     # --------------------------------------------------------------------------
 
@@ -787,9 +915,10 @@ def main():
     # with the minimum assignment information
     if args.assignment_spreadsheet:
 
-        # Create a list of submissions both by track and globally
-        track_assignments = defaultdict(list)
-        global_assignments = []
+        global_spreadsheet = []
+        global_softconf_uploadable = []
+        track_spreadsheets = defaultdict(list)
+        track_softconf_uploadables = defaultdict(list)
 
         # Form the csv headers such that both spreadsheets will contain the id
         # of the submission and the username of each assigned reviewer/AC
@@ -823,92 +952,65 @@ def main():
 
         coi_header_info = track_header_info + ['Original track']
 
-        problem = 'all_tracks'
-
         # Loop over the submissions
-        for submission_id, submission in enumerate(submissions):
+        for global_submission_id, submission in enumerate(global_assignments):
 
             # Get the track and submission id for each
-            track_submission_info = []
-            global_submission_info = []
+            track_info = []
+            global_info = []
+            softconf_upload_string = []
             track = submission['track']
-            if args.track:
-                problem = track
-            submission_local_id = problem_papers[problem].index(submission_id)
-            submission_idx = submission['startSubmissionId']
-            track_submission_info.append(submission_idx)
-            global_submission_info.append(submission_idx)
+            start_idx = submission['start_idx']
+            track_info.append(start_idx)
+            global_info.append(start_idx)
+            softconf_upload_string.append(start_idx)
 
-            # Use the scores to get the index for each assigned reviewer, and
-            # get their username for the output spreadsheet
-            try:
-                assigned_reviewers = (
-                    assignments[problem][submission_local_id].argsort()
-                    [-args.reviews_per_paper:][::-1]
-                )
-            except:
-                assigned_reviewers = []
-
-            assigned_reviewer_global_ids = [
-                problem_reviewers[problem][j] for j in assigned_reviewers
-            ]
-            similar_reviewers = (
-                optimization_problems[problem][submission_local_id].argsort()
-                [-args.num_similar_to_list:][::-1]
-            )
-            similar_reviewer_global_ids = [
-                problem_reviewers[problem][j] for j in similar_reviewers
-            ]
-
+            # Add assigned reviewer information to spreadsheet row
+            assigned_reviewers = submission['assigned_reviewer_global_ids']
             same_track = True
             if len(assigned_reviewers) == 0:
                 for i in range(args.reviews_per_paper):
-                    track_submission_info += ['', '']
-                    global_submission_info += ['', '']
+                    track_info += ['', '']
+                    global_info += ['', '']
+                    softconf_upload_string += ['']
             else:
-                reviewer_ids = zip(
-                    assigned_reviewers, assigned_reviewer_global_ids
+                reviewer_info = zip(
+                    assigned_reviewers, submission['assigned_reviewer_scores']
                 )
-                for reviewer_local_id, reviewer_global_id in reviewer_ids:
-                    username = (
-                        reviewer_data[reviewer_global_id]['startUsername']
-                    )
-                    name = reviewer_data[reviewer_global_id]['names'][0]
+                for reviewer_idx, reviewer_score in reviewer_info:
+                    username = reviewer_data[reviewer_idx]['startUsername']
+                    name = reviewer_data[reviewer_idx]['names'][0]
                     name = f"{name} ({username})"
-                    score = round(
-                        optimization_problems[problem][submission_local_id]
-                        [reviewer_local_id], 4
-                    )
-                    track_submission_info += [name, score]
-                    global_submission_info += [username, score]
+                    score = round(reviewer_score, 4)
+                    track_info += [name, score]
+                    global_info += [username, score]
+                    softconf_upload_string += [username]
                     if args.area_chairs:
                         track_list = set(
-                            reviewer_data[reviewer_global_id]['ac_tracks']
+                            reviewer_data[reviewer_idx]['ac_tracks']
                         )
                     else:
-                        track_list = set(
-                            reviewer_data[reviewer_global_id]['tracks']
-                        )
+                        track_list = set(reviewer_data[reviewer_idx]['tracks'])
                     same_track = same_track and (track in track_list)
 
-            # Similar reviewers
-            reviewer_ids = zip(similar_reviewers, similar_reviewer_global_ids)
-            for reviewer_local_id, reviewer_global_id in reviewer_ids:
-                username = reviewer_data[reviewer_global_id]['startUsername']
-                name = reviewer_data[reviewer_global_id]['names'][0]
+            # Add similar reviewer information to spreadsheet row
+            reviewer_info = zip(
+                submission['similar_reviewer_global_ids'],
+                submission['similar_reviewer_scores']
+            )
+            for reviewer_idx, reviewer_score in reviewer_info:
+                username = reviewer_data[reviewer_idx]['startUsername']
+                name = reviewer_data[reviewer_idx]['names'][0]
                 name = f"{name} ({username})"
-                score = round(
-                    optimization_problems[problem][submission_local_id]
-                    [reviewer_local_id], 4
-                )
-                track_submission_info += [name, score]
+                score = round(reviewer_score, 4)
+                track_info += [name, score]
 
             # Also append the track name to the global submission info
-            global_submission_info += [track, same_track]
+            global_info += [track, same_track]
 
             # Get the COIs for the submission, and filter out all those that are
             # SACs or ACs
-            submission_cois = cois[submission_id]
+            submission_cois = cois[global_submission_id]
             coi_idx = [
                 x for x in range(submission_cois.shape[0])
                 if submission_cois[x] == 1
@@ -923,19 +1025,29 @@ def main():
                 for idx in coi_idx if reviewer_data[idx]['areaChair'] and
                 track in reviewer_data[idx]['ac_tracks']
             ]
-            track_submission_info.append('; '.join(coi_sacs))
-            track_submission_info.append('; '.join(coi_acs))
+            track_info.append('; '.join(coi_sacs))
+            track_info.append('; '.join(coi_acs))
 
             # If all track SACs have a COI with the submission, move it to the
             # separate COI track
             if set(coi_sacs) == track_sacs[track]:
-                track_submission_info.append(track)
+                track_info.append(track)
                 track = 'COI'
-                global_submission_info[-2] = track
+                global_info[-2] = track
 
-            # Append the submission data to both the
-            track_assignments[track].append(track_submission_info)
-            global_assignments.append(global_submission_info)
+            # Add the formed rows to the respective spreadsheets
+            global_spreadsheet.append(global_info)
+            track_spreadsheets[track].append(track_info)
+
+            softconf_upload_string = ':'.join(softconf_upload_string)
+            global_softconf_uploadable.append(softconf_upload_string)
+            track_softconf_uploadables[track].append(softconf_upload_string)
+
+        # Separate the input file base from its extension so we can print
+        # multiple files with the same general schema
+        file_base, file_extension = (
+            os.path.splitext(args.assignment_spreadsheet)[:2]
+        )
 
         # Open the file path given in the arguments as the global assignment
         # spreadsheet, writing each row
@@ -944,15 +1056,15 @@ def main():
                 f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL
             )
             writer.writerow(global_header_info)
-            for entry in global_assignments:
+            for entry in global_spreadsheet:
                 writer.writerow(entry)
+        with open(file_base + '.txt', 'w+') as f:
+            for line in global_softconf_uploadable:
+                print(line, file=f)
 
         # For each track, create a file as a csv spreadsheet for all the track
         # submissions and their reviewer assignments
-        file_base, file_extension = (
-            os.path.splitext(args.assignment_spreadsheet)[:2]
-        )
-        for track in track_assignments.keys():
+        for track in track_spreadsheets.keys():
             alphanum_track = '-'.join(re.split(r'[\W,:]+', track))
             filename = f'{file_base}_{alphanum_track}{file_extension}'
             with open(filename, 'w+') as f:
@@ -963,8 +1075,12 @@ def main():
                     writer.writerow(coi_header_info)
                 else:
                     writer.writerow(track_header_info)
-                for entry in track_assignments[track]:
+                for entry in track_spreadsheets[track]:
                     writer.writerow(entry)
+            filename = f'{file_base}_{alphanum_track}.txt'
+            with open(filename, 'w+') as f:
+                for line in track_softconf_uploadables[track]:
+                    print(line, file=f)
 
 
 if __name__ == "__main__":
