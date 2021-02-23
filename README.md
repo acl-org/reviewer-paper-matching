@@ -2,7 +2,7 @@
 
 This is a codebase to match reviewers for the 
 [ACL Conferences](https://aclweb.org). It is based on paper matching between
-abstracts of submitted papers and a database of papers from 
+abstracts of submitted papers and a database of papers from
 [Semantic Scholar](https://www.semanticscholar.org).
 
 ## Changes for ACL 2021
@@ -19,7 +19,8 @@ filter in the ACL entries, so as to use much less disk space. See
 rejected submissions, and reviewers/ACs in multiple tracks
 - Fixed regular expressions for parsing softconf output (this is a problem, 
 since the output format seems to have changed even since NAACL-2021 review)
-- Added additional reviewer fields for "SAC tracks" and "AC tracks", to differentiate this from tracks in which the person is a regular reviewer
+- Added additional reviewer fields for "SAC tracks" and "AC tracks", to
+differentiate this from tracks in which the person is a regular reviewer
 
 ### `solution_viability_check.py`
 - Added a script to check if there is a viable assignment solution for each
@@ -39,9 +40,12 @@ parsing out assigned and similar reviewers to an easy data format)
     track if the `track` parameter is True, otherwise solving one subproblem
     labeled `all_tracks`
     - This takes the place of using soft (penalty) constraints to enforce
-    assignments to be within the same track, as well as enforcing only AC/reviewers getting papers. Because ineligible reviewers are no longer get columns in the subproblem matrix, making this a hard constraint
-- ACL 2021 PCs wanted output to be in the form of spreadsheets with additional information such as SACs with COIs. Added option to
-output such spreadsheets, without getting rid of the previous jsonl output
+    assignments to be within the same track, as well as enforcing only
+    AC/reviewers getting papers. Because ineligible reviewers are no longer get
+    columns in the subproblem matrix, making this a hard constraint
+- ACL 2021 PCs wanted output to be in the form of spreadsheets with additional
+information such as SACs with COIs. Added option to output such spreadsheets,
+without getting rid of the previous jsonl output
 
 ***
 
@@ -68,7 +72,7 @@ options create the `scratch` folder where we will save the data and output files
 for the system, as well as `scratch/acl-anthology.json`, which contains the
 information for all the relevant ACL papers in the dump.
 
-**(Option A): Download Entire Dump** 
+**(Option A): Download Entire Dump**
 
 Download the semantic scholar dump
 [following the instructions](https://api.semanticscholar.org/corpus/download/).
@@ -157,19 +161,21 @@ In START, go to "Spreadsheet Maker", and download the spreadsheet for
 spreadsheet are `Username`, `Email`, `First Name`, `Last Name`,
 `Semantic Scholar ID`, `Roles`, `PCRole`, and `emergencyReviewer`. **Note:** The
 ACL COI-detection scripts also use the author/reviewer profiles as input, and
-require the additional fields `Previous Affiliations`, `Affiliation Type`,
-`COIs Entered on Global Profile`, `Backup Email`, and `Year of Graduation`.
+require the additional fields `Affiliation`, `Affiliation Type`, 
+`Previous Affiliations` (sometimes called `Previous Affiliations (by domain)`),
+`COIs Entered on Global Profile`, `Year of Graduation`, and `Backup Email`
 
 **(1b, optional)** Create scratch/quotas.csv from softconf:
 
-In the same page of the Spreadsheet Maker, download a csv with the fields `Username` and `Quota for Review`. Save this as `quotas.csv`
+In the same page of the Spreadsheet Maker, download a csv with the fields
+`Username` and `Quota for Review`. Save this as `quotas.csv`
 
 **(1c)** Create scratch/Submission_Information.csv from softconf:
 
 In the Spreadsheet Maker, download the spreadsheet for "Submissions" as a csv.
 The necessary fields to download for this spreadsheet are `Submission ID`,
-`Title`, `Track`, `Submission Type`, `Abstract`, `Authors`, `All Author Emails`,
-`Acceptance Status`, and `Author Information`.
+`Title`, `Track`, `Submission Type`, `Abstract`, `Authors`,
+`Author Information`, `All Author Emails`, and `Acceptance Status`.
 
 #### Step 2 (optional): Create scratch/bids.csv (matrix of COI information)
 
@@ -196,7 +202,8 @@ Contact ACL for the github site for the COI-detection system. The code will use
 system is `scratch/bids.csv`. If Step 2a is not run first, this system will give
 a warning.
 
-The COI-detection system and instructions can be found [here](https://github.com/acl-org/reviewer-coi-detection)
+The COI-detection system and instructions can be found
+[here](https://github.com/acl-org/reviewer-coi-detection)
 
 #### Step 3: Process the files from Step 1-2 into the jsonl and npy format, for use in Step 5
 
@@ -212,14 +219,19 @@ The COI-detection system and instructions can be found [here](https://github.com
         [--reject_out=scratch/rejects.jsonl]
 
 The first three arguments are input files (created in Step 1 and 2), and the
-next three arguments are the base output files. This step processes the input files
-(e.g., use RegEx to clean some data) and saves the results to jsonl and npy
-files.
+next three arguments are the base output files. This step processes the input
+files (e.g., use RegEx to clean some data) and saves the results to jsonl and
+npy files.
 
 The `bid_in` argument (if provided) comes from Step 2. If this argument is not
 provided, no COIs will be initialized.
 
-`non_reviewers_out`, `multi_track_reviewers_out`, and `reject_out` are all optional. `non_reviewers_out` is a file to store person profiles that are not reviewers. `multi_track_reviewers_out` will store reviewers who are assigned to more than one track. `reject_out` will store papers that have been desk-rejected or withdrawn. All of these are for debugging purposes, and are not necessary for the paper assignment to run.
+`non_reviewers_out`, `multi_track_reviewers_out`, and `reject_out` are all
+optional. `non_reviewers_out` is a file to store person profiles that are not
+reviewers. `multi_track_reviewers_out` will store reviewers who are assigned to
+more than one track. `reject_out` will store papers that have been desk-rejected
+or withdrawn. All of these are for debugging purposes, and are not necessary for
+the paper assignment to run.
 
 #### Step 4 (optional): Run the viability check script
 
@@ -230,7 +242,12 @@ provided, no COIs will be initialized.
         --reviewers_per_paper=3 \
         --quota_file=scratch/quotas.csv > viability_check.txt
 
-This script outputs a diagnostic checking whether there are enough reivewers and ACs in each track, given quotas and default max paper assignments. `reviewer_file` and `submission_file` come from Step 3. `quota_file` is generated in Step 1b. The script writes to stdout, and shows information for each track. The `Warning` lines can be searched to make sure there is a possible solution.
+This script outputs a diagnostic checking whether there are enough reivewers and
+ACs in each track, given quotas and default max paper assignments.
+`reviewer_file` and `submission_file` come from Step 3. `quota_file` is
+generated in Step 1b. The script writes to stdout, and shows information for
+each track. The `Warning` lines can be searched to make sure there is a possible
+solution.
 
 #### Step 5: Create and save the reviewer assignments to scratch/assignments.jsonl
 
@@ -255,15 +272,19 @@ This script outputs a diagnostic checking whether there are enough reivewers and
 The first two arguments come from the model training stage (see Part 1). The
 next three arguments come from Step 3.
 
-You can modify `reviews_per_paper`, `min_papers_per_reviewer`, and `max_papers_per_reviewer` to change the
-number of reviews assigned to each paper and max number of reviews per reviewer. `num_similar_to_list` determines how many similar reviewers per submission will be listed outside of the actual assignment.
+You can modify `reviews_per_paper`, `min_papers_per_reviewer`, and
+`max_papers_per_reviewer` to change the number of reviews assigned to each paper
+and max number of reviews per reviewer. `num_similar_to_list` determines how
+many similar reviewers per submission will be listed outside of the actual
+assignment.
 
 The `<save|load>` arguments are useful to cache progress between separate runs
 of the script, for instance if you change any of the parameters. For example,
 when you first run the script, a similarity matrix will be calculated between
 the submissions and the reviewers' papers (`paper_matrix`) as will an aggregated
 matrix between submissions and reviewers (`aggregate_matrix`). In order to not
-have to re-calculate this matrix later, you would include the following in your first run:
+have to re-calculate this matrix later, you would include the following in your
+first run:
 
     --save_paper_matrix=scratch/paper_matrix.npy \
     --save_aggregate_matrix=scratch/aggregate_matrix.npy \
@@ -273,30 +294,37 @@ And then to re-use those matrices in subsequent runs, include:
     --load_paper_matrix=scratch/paper_matrix.npy \
     --load_aggregate_matrix=scratch/aggregate_matrix.npy \
 
-**The aggregation step takes a long time**, so caching this matrix is recommended.
+**The aggregation step takes a long time**, so caching this matrix is
+recommended.
 
 `quota_file`, `--track`, and `--area_chairs` are all optional arguments.
 `quota_file` is a csv file downloaded from START containing the Username and
 Quota (created in Step 1b). If no quota is provided,
 the max will be `max_papers_per_reviewer` for every reviewer. If the `--track`
 flag is included, papers will only be assigned to reviewers in the same track.
-If the `--area_chairs` flag is included, papers will only be assigned to area chairs (for running AC assignment).
+If the `--area_chairs` flag is included, papers will only be assigned to area
+chairs (for running AC assignment).
 
 At this point, you will have assignments written to `scratch/assignments.jsonl`.
 
-`assignment_spreadsheet` is an additional optional parameter designating a base file to which to write assignments in csv format. This will  generate a global assignment spreadsheet, as well as more detailed ones for each track in the same directory. For instance, if you include
+`assignment_spreadsheet` is an additional optional parameter designating a base
+file to which to write assignments in csv format. This will generate a global
+assignment spreadsheet, as well as more detailed ones for each track in the same
+directory. For instance, if you include
 
     --assignment_spreadsheet=scratch/assignments.csv
 
-the global file will be `scratch/assignments.csv`, and the track-wise files will follow the format `scratch/assignments_<track_name>.csv`.
+the global file will be `scratch/assignments.csv`, and the track-wise files will
+follow the format `scratch/assignments_<track_name>.csv`.
 
-This option will also produce `.txt` files that can uploaded directly to softconf. Therefore, Step 6 and 7 are optional if this parameter is specified.
+This option will also produce `.txt` files that can uploaded directly to
+softconf. Therefore, Step 6 and 7 are optional if this parameter is specified.
 
 #### Step 6 (optional): Convert jsonl assignment to readable format
 
-You will then have assignments written to `scratch/assignments.jsonl`. After you've output the suggestions, you can also
-print them (and save them to a file `scratch/assignments.txt`) in an
-easier-to-read format by running:
+You will then have assignments written to `scratch/assignments.jsonl`. After
+you've output the suggestions, you can also print them (and save them to a file
+`scratch/assignments.txt`) in an easier-to-read format by running:
 
     python suggest_to_text.py < scratch/assignments.jsonl | tee scratch/assignments.txt
     
@@ -356,8 +384,8 @@ Follow the steps in the previous section on reviewer assignment to generate
             --reviewer_file=scratch/reviewers.jsonl \
             --bid_file=scratch/bids.npy
 
-This will tell you the ratio of assignments that were made to each bid, where in general a higher
-ratio of "3"s is better.
+This will tell you the ratio of assignments that were made to each bid, where in
+general a higher ratio of "3"s is better.
 
 ***
 
@@ -392,10 +420,11 @@ the paper.
 
 ### Reviewer Score Aggregation
 
-Next, we aggregate the paper-paper matching scores into paper-reviewer matching scores. Assume that
-`S_r` is the set of all papers written by a reviewer `r`, and `p` is a submitted
-paper. The paper-reviewer matching score of this paper can be calculated in a
-number of ways, but currently this code uses the following by default:
+Next, we aggregate the paper-paper matching scores into paper-reviewer matching
+scores. Assume that `S_r` is the set of all papers written by a reviewer `r`,
+and `p` is a submitted paper. The paper-reviewer matching score of this paper
+can be calculated in a number of ways, but currently this code uses the
+following by default:
 
     match(p,r) = max(match(S_r,p)) + second(match(S_r,p)) / 2 + third(match(S_r,p)) / 3
 
