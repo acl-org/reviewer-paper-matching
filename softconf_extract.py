@@ -28,7 +28,8 @@ def find_colids(colnames, header):
 
 def is_area_chair_from(role):
     """
-    Compute if the role description corresponds to a area chair
+    Compute if the role description corresponds to a area chair, and also return
+    the track(s) in which they are an area chair
 
     Usually, ACs have 'Meta Reviewer" in their role description,
     e.g. "committee:Summarization:Meta Reviewer"
@@ -47,7 +48,8 @@ def is_area_chair_from(role):
 
 def is_senior_area_chair_from(role):
     """ 
-    Computes if the role description corresponds to a senior area chair
+    Computes if the role description corresponds to a senior area chair, and
+    also return the track(s) in which they are an area chair
 
     SACs are discinguishable from everyone else via the "manager" suffix.
     E.g. committee:Speech:Speech (manager 1)
@@ -58,7 +60,7 @@ def is_senior_area_chair_from(role):
         if len(track_strings) > 0:
             track_strings = [track.strip() for track in track_strings]
         else:
-            track_strings = ''
+            track_strings = ['']
         return (True, track_strings)
     else:
         return (False, [])

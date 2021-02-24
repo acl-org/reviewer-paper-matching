@@ -5,48 +5,6 @@ This is a codebase to match reviewers for the
 abstracts of submitted papers and a database of papers from
 [Semantic Scholar](https://www.semanticscholar.org).
 
-## Changes for ACL 2021
-
-### Semantic Scholar Download
-- Because the Semantic Scholar dump used to train the similarity model is so
-large (>150GB) there is now a script to incrementally download the dump and
-filter in the ACL entries, so as to use much less disk space. See
-`download_s2.sh` and Part 1 Step 3 of the Usage Instructions
-
-### `softconf_extract.py`
-- Added extensive comments and standardized style
-- Added options to output files keeping track of non-reviewer profiles,
-rejected submissions, and reviewers/ACs in multiple tracks
-- Fixed regular expressions for parsing softconf output (this is a problem, 
-since the output format seems to have changed even since NAACL-2021 review)
-- Added additional reviewer fields for "SAC tracks" and "AC tracks", to
-differentiate this from tracks in which the person is a regular reviewer
-
-### `solution_viability_check.py`
-- Added a script to check if there is a viable assignment solution for each
-track given the number of papers, reviewers, ACs, and quotas within the track
-(to be run on the output of `softconf_extract`)
-
-### `suggest_reviewers.py`
-- Added extensive comments and standardized style
-- Modularized many parts of the main script into their own functions (e.g.
-reading in quotas, including/excluding ACs, separating problems by track,
-parsing out assigned and similar reviewers to an easy data format)
-- Same script is used for both AC and regular reviewer assignment
-- **Changed script to separate out optimization subproblems (large change)**
-    - Optimization runtime is *greatly* improved if broken down into separate
-    problems
-    - Changed the script to break the assignment problem into subproblems by
-    track if the `track` parameter is True, otherwise solving one subproblem
-    labeled `all_tracks`
-    - This takes the place of using soft (penalty) constraints to enforce
-    assignments to be within the same track, as well as enforcing only
-    AC/reviewers getting papers. Because ineligible reviewers are no longer get
-    columns in the subproblem matrix, making this a hard constraint
-- ACL 2021 PCs wanted output to be in the form of spreadsheets with additional
-information such as SACs with COIs. Added option to output such spreadsheets,
-without getting rid of the previous jsonl output
-
 ***
 
 ## Usage Instructions
