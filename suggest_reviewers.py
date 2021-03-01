@@ -823,7 +823,7 @@ def get_csv_header(
             reviewer_field = f'Similar {role} {x}'
             score_field = f'Similar {role} {x} score'
             header += [reviewer_field, score_field]
-        header += ['SACs with COI', 'ACs with COI']
+        header += ['SACs with COI', 'ACs with COI', 'Reviewers with COI']
 
     return header
 
@@ -918,8 +918,8 @@ def get_csv_rows(
         # Also append the track name to the global submission info
         global_info += [track, same_track]
 
-        # Get the COIs for the submission, and filter out all those that are
-        # SACs or ACs
+        # Get the COIs for the submissions, categorizing by SACs, ACs, and
+        # reviewers
         submission_cois = cois[global_submission_id]
         coi_idx = [
             x
@@ -934,8 +934,15 @@ def get_csv_rows(
             reviewers[idx]['startUsername'] for idx in coi_idx if
             reviewers[idx]['areaChair'] and track in reviewers[idx]['ac_tracks']
         ]
+        coi_reviewers = [
+            reviewers[idx]['startUsername'] for idx in coi_idx
+            if not reviewers[idx]['seniorAreaChair']
+            and not reviewers[idx]['areaChair']
+            and track in reviewers[idx]['tracks']
+        ]
         track_info.append('; '.join(coi_sacs))
         track_info.append('; '.join(coi_acs))
+        track_info.append('; '.join(coi_reviewers))
 
         # If all track SACs have a COI with the submission, move it to the
         # separate COI track
@@ -957,9 +964,11 @@ def get_csv_rows(
         (track_rows, track_softconf_uploadables)
     )
 
+
 # ------------------------------------------------------------------------------
 # Main Script
 # ------------------------------------------------------------------------------
+
 
 def main():
 
